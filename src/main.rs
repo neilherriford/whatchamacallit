@@ -1,3 +1,5 @@
+mod database;
+
 use ndarray::{Array2, ArrayBase, Dim, OwnedRepr};
 use ort::{
     session::{
@@ -6,9 +8,11 @@ use ort::{
     },
     value::Tensor,
 };
-use std::path::PathBuf;
+use std::{path::PathBuf, process::ExitCode};
 use thiserror::Error;
 use tokenizers::Tokenizer;
+
+use crate::database::SqliteDatabase;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -22,11 +26,26 @@ pub enum Error {
     GeneralError(#[from] Box<dyn std::error::Error + Send + Sync>),
 }
 
-fn main() {
+fn main() -> ExitCode {
     match run("a very cool definition for a word i can't remember") {
-        Ok(_) => println!("done!"),
-        Err(err) => println!("oops {err}"),
+        Ok(data) => println!("done: {data:?}"),
+        Err(err) => {
+            println!("oops {err}");
+
+            return ExitCode::FAILURE;
+        }
     }
+
+    let db = match SqliteDatabase::build() {
+        Ok(db) => db,
+        Err(err) => {
+            println!("oops {err}");
+
+            return ExitCode::FAILURE;
+        }
+    };
+
+    ExitCode::SUCCESS
 }
 
 fn model_file(file_name: &str) -> PathBuf {
@@ -47,7 +66,11 @@ fn create_array(
     Ok(Array2::from_shape_vec((1, size), ids)?)
 }
 
-fn run(prompt: &str) -> Result<(), Error> {
+fn to_i64s(values: &[u32]) -> Vec<i64> {
+    values.iter().map(|i| *i as i64).collect()
+}
+
+fn run(prompt: &str) -> Result<Vec<f32>, Error> {
     let env = ort::init().build()?;
 
     let mut model = Session::builder(&env)?
@@ -58,23 +81,9 @@ fn run(prompt: &str) -> Result<(), Error> {
     let tokenizer = Tokenizer::from_file(model_file("tokenizer.json"))?;
     let tokens = tokenizer.encode(prompt, false).unwrap();
 
-    let ids = tokens
-        .get_ids()
-        .iter()
-        .map(|i| *i as i64)
-        .collect::<Vec<_>>();
-
-    let attention_mask = tokens
-        .get_attention_mask()
-        .iter()
-        .map(|i| *i as i64)
-        .collect::<Vec<_>>();
-
-    let type_ids = tokens
-        .get_type_ids()
-        .iter()
-        .map(|i| *i as i64)
-        .collect::<Vec<_>>();
+    let ids = to_i64s(&tokens.get_ids());
+    let attention_mask = to_i64s(&tokens.get_attention_mask());
+    let type_ids = to_i64s(&tokens.get_type_ids());
 
     let tensor_ids = Tensor::from_array(create_array(ids, tokens.len())?)?;
     let tensor_mask = Tensor::from_array(create_array(attention_mask.clone(), tokens.len())?)?;
@@ -86,10 +95,7 @@ fn run(prompt: &str) -> Result<(), Error> {
         "token_type_ids" => tensor_types,
     ])?;
 
-    let (shape, data) = outputs[0].try_extract_tensor::<f32>()?;
-
-    println!("The exact output shape is: {:?}", shape);
-    println!("The flattened data has {} total floats", data.len());
+    let (_, data) = outputs[0].try_extract_tensor::<f32>()?;
 
     let mut acc: Vec<f32> = vec![0.0; 384];
     let mut valid_tokens_count: f32 = 0.0;
@@ -104,11 +110,5 @@ fn run(prompt: &str) -> Result<(), Error> {
         }
     }
 
-    let result = acc
-        .iter()
-        .map(|val| val / valid_tokens_count)
-        .collect::<Vec<_>>();
-
-    println!("output: {result:?}");
-    Ok(())
+    Ok(acc.iter().map(|val| val / valid_tokens_count).collect())
 }

@@ -31,3 +31,5 @@ rustc-ice-*.txt
 
 # project specific
 models/**
+db/**
+dictionary/**

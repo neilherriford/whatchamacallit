@@ -12,3 +12,14 @@ Learning how to leverage and train local models for fun and no profit.
 # How?
 Using the [all-MiniLM-L6-v2-onnx](https://huggingface.co/onnx-models/all-MiniLM-L6-v2-onnx/tree/main) model, 
 and experimenting with an LLM generated syllabus.
+
+## File structure
+
+`models/`
+Local ONNX models go here (currently `all-MiniLM-L6-v2`).
+
+`db/`
+sqlite3 db for storing and querying the vectors
+
+`dictionary/`
+raw dictionary goes here for processing

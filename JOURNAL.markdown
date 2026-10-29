@@ -21,3 +21,17 @@ been tokenized to some n-dimensional representation, and to prepare
 for search, we're finding it's centroid and then querying for that?
 
 Next up, setting up the db
+
+
+20261028
+========
+Day two: ingestion
+Getting sqlite up
+Make the database more idempotent
+Study session on Virtual tables -- sqlite interop?
+[sqlite-vec](https://github.com/asg017/sqlite-vec)
+ok need to init -- oh interesting the bundled feature flag is what
+forces the vectorized version to be used ok cool.
+OK got the data base ready for receiving chunks
+Now to grab a datasource
+got 13GB worth, now to write a translator
