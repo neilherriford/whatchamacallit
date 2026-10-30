@@ -35,3 +35,342 @@ forces the vectorized version to be used ok cool.
 OK got the data base ready for receiving chunks
 Now to grab a datasource
 got 13GB worth, now to write a translator
+
+20261029
+========
+Continuing on ingestion
+doing some rough analysis of the input data, here's the unique element names so far
+  mediawiki
+  siteinfo
+  sitename
+  dbname
+  base
+  generator
+  case
+  namespaces
+  namespace
+  page
+  title
+  ns
+  id
+  revision
+  parentid
+  timestamp
+  contributor
+  username
+  comment
+  origin
+  model
+  format
+  text
+  sha1
+  minor
+  redirect
+  ip
+
+
+here's an actual page:
+
+```xml
+<page>
+  <title>nonsense</title>
+  <ns>0</ns>
+  <id>59</id>
+  <revision>
+    <id>92523594</id>
+    <parentid>92392578</parentid>
+    <timestamp>2026-09-08T18:52:29Z</timestamp>
+    <contributor>
+      <username>Missileboi</username>
+      <id>3842224</id>
+    </contributor>
+    <comment>t+el:[[:ασυναρτησίες]] ([[WT:EDIT|Assisted]])</comment>
+    <origin>92523594</origin>
+    <model>wikitext</model>
+    <format>text/x-wiki</format>
+    <text bytes="15834" sha1="qzp3r8yz8qf6ndq9pmcrrdd9u2eb9pj" xml:space="preserve">{{also|non-sense}}
+==English==
+
+===Alternative forms===
+* {{alt|en|nonsence||archaic}}
+* {{alt|en|non-sense}}
+
+===Etymology===
+{{etymon|en|:af|non-&lt;id:not&gt;|sense|tree=1}}
+From {{af|en|non-&lt;id:not&gt;|t1=no, none, lack of|sense}}, from c. 1610. Compare the semantically similar {{cog|fy|ûnsin|t=nonsense}}, {{cog|nl|onzin|t=nonsense}}, {{cog|de|Unsinn|t=nonsense}}, {{cog|en|unsense|t=nonsense}}.
+
+===Pronunciation===
+* {{IPA|en|/ˈnɒn.səns/|a=RP}}
+* {{IPA|en|/ˈnɑn.sɛns/|a=GenAm,Canada}}
+* {{audio|en|en-us-nonsense.ogg|a=US}}
+* {{IPA|en|/ˈnɔn.səns/|a=AU}}
+* {{hyph|en|non|sense}}
+* {{rhymes|en|ɒnsɛns|ɒnsəns|s=2}}
+
+===Noun===
+{{wp}}
+{{en-noun|-|s}}
+
+# Letters or words, in [[writing]] or [[speech]], that have no [[meaning]] or [[pattern]] or seem to have no meaning.
+#: {{ux|en|After my father had a stroke, every time he tried to talk, it sounded like '''nonsense'''.}}
+# An [[untrue]] statement.
+#* {{RQ:Plato Tredennick Socrates|page=21|passage=You have seen it for yourselves in the play by {{w|Aristophanes}}, where Socrates goes whirling round, proclaiming that he is walking on air, and uttering a great deal of other '''nonsense''' about things of which I know nothing whatsoever.}}
+#* {{quote-av|en|date=April 13, 2022|episode=[https://www.youtube.com/watch?v=F78qC518NWU Man Gets Arrested Twice in One Day]|title=[https://www.youtube.com/@CodeBlueCam Code Blue Cam]|passage=While at the hospital, David kept screaming and yelling '''nonsense''', stating Vladimir Putin bailed him out of jail and is a god.}}
+# That which is silly, [[illogical]] and lacks any meaning, [[reason]] or value; that which does not make [[sense]].
+# Something foolish.
+#* {{quote-journal|en|date=October 9 2008|title=Nick Leeson has some lessons for this collapse|work=Telegraph.co.uk|passage=and central banks lend vast sums against marshmallow backed securities, or other '''nonsenses''' creative bankers dreamed up.}}
+# {{lb|en|literature}} A type of poetry that contains strange or surreal ideas, as, for example, that written by {{w|Edward Lear}}.
+# {{lb|en|biology}} A damaged DNA sequence whose products are not biologically active, that is, that does nothing.
+
+====Synonyms====
+* ''See'' [[Thesaurus:nonsense]]
+* {{sense|untrue statement}} {{l|en|falsehood}}, {{l|en|lie}}, {{l|en|untruth}}, {{l|en|absurdity}}, {{l|en|rubbish}}, {{l|en|tosh}}
+* {{sense|that which is silly, illogical}} {{l|en|absurdity}}, {{l|en|silliness}}, {{l|en|contradiction}}, {{l|en|stupidity}}, {{l|en|unreasoning}}
+
+====Derived terms====
+{{col|en|beyonsense|nonnonsense|nonsensely|nonsensic|nonsensity
+|diagnonsense|non-nonsense|no-nonsense|nonsensical|nonsensification|nonsensify|QAnonsense|abstract nonsense|nonsense mutation|nonsense syndrome|nonsense word|nonsense-mediated decay|stuff and nonsense|what nonsense}}
+
+====Collocations====
+{{col-top|2|col}}
+* utter nonsense
+* sheer nonsense
+* complete nonsense
+* absolute nonsense
+* pure nonsense
+* downright nonsense
+* perfect nonsense
+* silly nonsense
+* superstitious nonsense
+* romantic nonsense
+* childish nonsense
+{{col-bottom}}
+
+====Translations====
+{{trans-top-see|meaningless words|gibberish}}
+* Albanian: {{t|sq|ádra|f}}, {{t|sq|dokrra|f}}, {{t|sq|gjepura|f}}, {{t|sq|palidhje|f}},
+* Arabic: {{t|ar|هُرَاء|m}}, {{t|ar|لَغْو|m}}
+* Armenian: {{t+|hy|անհեթեթություն}}, {{t+|hy|աբսուրդ}}
+* Azerbaijani: {{t|az|çərən-pərən}}, {{t|az|tartan-partan}}, {{t+|az|cəfəngiyat}}
+* Belarusian: {{t|be|но́нсэнс|m}}, {{t|be|бяссэ́нсіца|f}}, {{t|be|абсу́рд|m}}, {{t+|be|бязглу́здзіца|f}}
+* Bulgarian: {{t+|bg|безсмислица|f}}
+* Catalan: {{t+|ca|bajanada|f}}, {{t+|ca|bestiesa|f}}, {{t+|ca|disbarat|f}}, {{t+|ca|estirabot|m}}
+* Chinese:
+*: Mandarin: {{t+|cmn|廢話|tr=fèihuà}}, {{t+|cmn|胡說|tr=húshuō}}, {{t+|cmn|胡言|tr=húyán}}, {{qualifier|vulgar}} {{t+|cmn|狗屁|tr=gǒupì}}
+* Cornish: {{t|kw|flows|m}}
+* Czech: {{t+|cs|nesmysl|m}}
+* Danish: {{t+|da|nonsens|n}}, {{t|da|vrøvl|n}}, {{t|da|sludder|n}}
+* Dutch: {{t+|nl|nonsens|m}}, {{t+|nl|onzin|m}}, {{t+|nl|flauwekul|m}}
+* Esperanto: {{t|eo|sensencaĵo}}, {{t|eo|absurdaĵo}}
+* Estonian: {{t|et|jamps}}
+* Faroese: {{t|fo|tvætl|n}}, {{t|fo|møsn|n}}
+* Finnish: {{t+|fi|hölynpöly}}, {{t+|fi|siansaksa}}
+* French: {{t+|fr|bêtise|f}}, {{t+|fr|absurdité|f}}
+* Galician: {{t|gl|lastrada|f}}, {{t|gl|arnada|f}}, {{t|gl|falcatrúa|f}}, {{t|gl|patochada|f}}, {{t|gl|doudice|m}}, {{t|gl|norrada|f}}
+* Georgian: {{t|ka|უაზრო}}, {{t|ka|უაზრობა}}, {{t|ka|სისულელე}}, {{t|ka|ნონსენსი}}, {{t+|ka|აბდაუბდა}}
+* German: {{t+|de|Blödsinn|m}}, {{t+|de|Nonsens|m}}, {{qualifier|colloquial}} {{t+|de|Quatsch|m}}, {{t+|de|Unsinn|m}}, {{t|de|Tüddelkram|m}}
+* Greek: {{t+|el|βλακείες|f-p}}, {{t+|el|ανοησίες|f-p}}, {{t+|el|ασυναρτησίες}}
+*: Ancient Greek: {{t|grc|φλυαρία|f}}
+* Hebrew: {{t|he|שטויות|tr=shtuyot}}, {{t+|he|חנטריש|tr=hantarish}} {{qualifier|in old slang}}
+* Hindi: {{t+|hi|बकवास|f}}
+* Hungarian: {{t+|hu|halandzsa}}, {{t+|hu|zagyvaság}}
+* Icelandic: {{t+|is|rugl|n}}, {{t+|is|bull|n}}
+* Indonesian: {{t+|id|omong kosong}}, {{t+|id|nonsens}}
+* Irish: {{t|ga|amaidí|f}}, {{t|ga|áiféis|f}}, {{t|ga|seafóid|f}}, {{t|ga|brilléis|f}}
+* Italian: {{t+|it|sciocchezza|f}}, {{t|it|senza senso}}, {{t|it|priva di significato}}, {{t+|it|ridicolaggine|f}}, {{t+|it|a vanvera}}, {{t+|it|idiozia|f}}, {{t+|it|assurdità|f}}, {{t+|it|cavolata|f}}, {{t+|it|corbelleria|f}}, {{t+|it|stupidaggine|f}}, {{t+|it|cazzata|f}}, {{t+|it|fesseria|f}}, {{t+|it|coglionata|f}}, {{t+|it|minchiata|f}}, {{t|it|privo di senso}}
+* Japanese: {{t+|ja|無意味|tr=むいみ, muimi}}, {{t+|ja|ナンセンス|tr=nansensu}}, {{t|ja|馬鹿げた事|tr=bakageta koto}}
+* Kazakh: {{t|kk|сандырақ}}, {{t|kk|шатпақ}}
+* Khmer: {{t|km|អំពើភ្លីភ្លើ|tr=ɑmpǝǝ plii-pləə}}, {{t|km|សំដីរហាច|tr=sɑmdəy rɔhaac}}
+* Korean: {{t+|ko|무의미(無意味)}}, {{t|ko|[[어리석다|어리석은]] [[소리]]}}, {{t|ko|개소리}}, {{t+|ko|헛소리}}, {{t+|ko|난센스}}
+* Kurdish:
+*: Central Kurdish: {{t|ckb|قسەی ھیچوپوچ}}
+* Latin: {{t|la|nūgae|f-p}}, {{t|la|gerrae|f-p}}, {{q|vulgar}} {{t|la|[[muscerda|muscerdae]]|f-p}}
+* Macedonian: {{t|mk|бесми́слица|f}}, {{t|mk|глу́пост|f}}
+* Malay: {{t-needed|ms}}
+* Malayalam: {{t+|ml|അസംബന്ധം}}
+* Manchu: {{t|mnc|ᡶᡳᠶᠣᡴᠣᠨ}}
+* Māori: {{t|mi|kutukutuahi}}, {{t|mi|ngutungutuahi}}, {{t|mi|kohe}}, {{t|mi|kūrapa}}
+* Mongolian: {{t-needed|mn}}
+* Norwegian:
+*: Bokmål: {{t+|nb|snikksnakk|n}}, {{t+|nb|vrøvl|n}}, {{t|nb|tullprat|m}}, {{t+|nb|nonsens|n}}, {{t|nb|vås|n}}
+* Persian: {{t|fa|بی‌معنی|tr=bi-ma'ni}}, {{t+|fa|چرند|tr=čarand}}, {{t+|fa|یاوه|tr=yâve}}, {{t+|fa|مهمل|tr=mohmal}}, {{t+|fa|چرت|tr=čert}}
+* Polish: {{t+|pl|nonsens|m-in}}, {{t+|pl|niedorzeczność}}, {{t+|pl|absurd}}, {{t+|pl|bezsens}}, {{t+|pl|bzdura|f}}, {{t+|pl|androny|m-p}}, {{t+|pl|bajdura|f}}
+* Portuguese: {{t+|pt|besteira|f}}, {{t+|pt|bobagem|f}}, {{t+|pt|burrice|f}}, {{t+|pt|disparate|m}}
+* Romanian: {{t+|ro|nonsens|n}}, {{t+|ro|absurditate|f}}, {{t|ro|[[nonsens]]uri|n-p}}
+* Russian: {{t+|ru|вздор|m}}, {{t+|ru|ерунда́|f}}, {{t+|ru|но́нсенс|m|tr=nónsɛns}}, {{t+|ru|бессмы́слица|f}}, {{t+|ru|ахине́я|f}}, {{t+|ru|абсу́рд|m}}, {{t+|ru|околе́сица|f}}, {{t+|ru|чепуха́|f}}
+* Scottish Gaelic: {{t|gd|sgudal|m}}, {{t|gd|amaideas|m}}
+* Serbo-Croatian:
+*: Latin: {{t+|sh|bèsmislica|f}}, {{t+|sh|glúpōst|f}}
+* Slovak: {{t|sk|nezmysel|m}}
+* Spanish: {{t+|es|disparate|m}}, {{t+|es|parida|f}}, {{t+|es|pamplina|f}}, {{t+|es|pamema|f}}, {{t|es|sinsentido|m}}, {{t+|es|despropósito|m}}, {{t+|es|contrasentido|m}}, {{t+|es|desbarro|m}}, {{t+|es|estólido|m}}, {{t+|es|gaita|f}}, {{t+|es|dislate|m}}
+* Swahili: {{t+|sw|upuuzi}}
+* Swedish: {{t+|sv|nonsens|n}}, {{t+|sv|strunt}}
+* Tagalog: {{t|tl|sagimuymoy}}
+* Tajik: {{t|tg|ҳарза}}
+* Tatar: {{t+|tt|сафсата}}
+* Thai: {{t+|th|ความเพ้อเจ้อ}}, {{t|th|การเพ้อเจ้อ}}
+* Tibetan: {{t|bo|ཆོ་མེད}}, {{t|bo|བྱབ་མེད}}, {{t|bo|བྱབ་ཆུང}}
+* Turkish: {{t+|tr|saçmalık}}
+*: Ottoman Turkish: {{t|ota|صاچمه|tr=saçma}}
+* Ukrainian: {{t|uk|дурни́ця|f}}, {{t+|uk|нісені́тниця|f}}, {{t+|uk|безглу́здя|n}}, {{t+|uk|абсу́рд|m}}, {{t+|uk|но́нсенс|m}}
+* Urdu: {{t|ur|بکواس|f|tr=bakvās}}
+* Welsh: {{t|cy|lol|f}}
+{{trans-bottom}}
+
+{{trans-top-see|untrue statement|hoax|lie}}
+* Catalan: {{t|ca|despropòsit|m}}
+* Chinese:
+*: Mandarin: {{t+|cmn|廢話|tr=fèihuà}}, {{t+|cmn|胡說|tr=húshuō}}, {{t+|cmn|胡言|tr=húyán}}, {{t+|cmn|狗屁|tr=gǒupì}} {{qualifier|vulgar}}
+* Cornish: {{t|kw|flows|m}}
+* Czech: {{t+|cs|nesmysl|m}}
+* Danish: {{t+|da|nonsens|n}}
+* Esperanto: {{t|eo|sensencaĵo}}
+* Faroese: {{t|fo|tvætl|n}}
+* Finnish: {{t+|fi|hölynpöly}}, {{t+|fi|valhe}}, {{t+|fi|vale}} {{q|informal}}, {{t+|fi|puppu}} {{q|informal}}, {{t|fi|pajunköysi}} {{q|informal}}, {{t+|fi|palturi}} {{q|informal}}, {{t+|fi|roska}}, {{t+|fi|roskapuhe}}, {{t+|fi|lööperi}} {{q|informal}}, {{t+|fi|potaska}} {{q|informal}}, {{t+|fi|pöty}} {{q|informal}}, {{t+|fi|puuta heinää}} {{q|informal}}
+* French: {{t+|fr|sottise|m}} (s), {{t+|fr|n'importe quoi}}, {{t+|fr|connerie|f}}
+* Galician: {{t|gl|lerdez|f}}, {{t|gl|secatura|f}}, {{t|gl|babosada|f}}, {{t|gl|gofeiza|f}}, {{t+|gl|asneira|f}}
+* German: {{t+|de|Nonsens|m}}, {{t+|de|Unsinn|m}}
+* Hungarian: {{t+|hu|képtelenség}}, {{t+|hu|nonszensz}}, {{t+|hu|ostobaság}}, {{t+|hu|badarság}}, {{t+|hu|szamárság}}
+* Italian: {{t+|it|balla|f}}, {{t+|it|fandonia|f}}, {{t+|it|scemenza|f}}, {{t+|it|fola|f}}, {{t+|it|baggianata|f}}
+* Japanese: {{t+|ja|でたらめ|tr=detarame}}
+* Kabuverdianu: {{t|kea|asnera}}
+* Macedonian: {{t|mk|глу́пост|f}}
+* Malayalam: {{t+|ml|അസംബന്ധം}}
+* Māori: {{t|mi|rūpahu}}
+* Portuguese: {{t+|pt|besteira|f}}, {{t+|pt|bobagem|f}}, {{t+|pt|burrice|f}}
+* Romanian: {{t+|ro|nerozie|f}}, {{t|ro|nerozii|f-p}}, {{t+|ro|prostie|f}}
+* Russian: {{t+|ru|вздор|m}}, {{t+|ru|ерунда́|f}}, {{t+|ru|но́нсенс|m}}, {{t+|ru|бессмы́слица|f}}, {{t+|ru|ахине́я|f}}
+* Scottish Gaelic: {{t|gd|sgudal|m}}, {{t|gd|amaideas|m}}
+* Serbo-Croatian:
+*: Latin: {{t+|sh|nesmisao|n}}, {{t+|sh|budaláština|f}}, {{t+|sh|nèistina|f}}
+* Spanish: {{t+|es|bulo|m}}, {{t|es|trola|f}}, {{t+|es|paparrucha|f}}, {{t+|es|infundio|m}}
+* Swedish: {{t+|sv|nonsens|n}}
+* Tatar: {{t+|tt|сафсата}}
+* Turkish: {{t+|tr|saçmalık}}, {{t+|tr|palavra}}
+* Welsh: {{t|cy|lol|f}}
+{{trans-bottom}}
+
+{{trans-top-see|something foolish|stupidity|idiocy}}
+* Georgian: {{t|ka|სისულელე}}, {{t|ka|უგუნურება}}, {{t|ka|უაზრობა}}
+* German: {{t+|de|Unfug|m}}
+* Irish: {{t|ga|bundún|m}}
+* Spanish: {{t+|es|chorrada|f}}, {{t+|es|majadería|f}}, {{t+|es|tontera|f}}, {{t+|es|bobada|f}}, {{t+|es|sandez|f}}, {{t+|es|tontería|f}}, {{t+|es|tontada|f}}, {{t+|es|tontuna|f}}, {{t+|es|gilipollez|f}}, {{t+|es|bobera|f}}, {{t+|es|necedad|f}}
+* Tibetan: {{t|bo|ཆོ་མེད}}, {{t|bo|བྱབ་མེད}}, {{t|bo|བྱབ་ཆུང}}
+{{trans-bottom}}
+
+{{trans-top|type of poetry}}
+* Czech: {{t+|cs|nonsens|m}}
+* Finnish: {{t+|fi|nonsense}}, {{t|fi|nonsense-[[runous]]}}
+* Hebrew: {{t+|he|איגיון|tr='igayon}}
+* Hungarian: {{t+|hu|nonszensz}}
+* Portuguese: {{t+|pt|nonsense|f}}
+{{trans-bottom}}
+
+{{trans-top|damaged DNA sequence}}
+* Finnish: {{t|fi|[[nonsense]]-[[jakso]]}}
+* French: {{t+|fr|non-sens|m}}
+* Portuguese: {{t|pt|sem sentido}}
+{{trans-bottom}}
+
+===Verb===
+{{en-verb}}
+
+# To make nonsense of;
+#* {{quote-book|en|year=a. 1909|author=Bernard Shaw|chapter=The Red Robe|editor=James Huneker|title=Dramatic Opinions and Essays by G. Bernard Shaw|volume=2|page=73|passage=At the Haymarket all this is '''nonsensed''' by an endeavor to steer between Mr. Stanley Weyman's rights as author of the story and the prescriptive right of the leading actor to fight popularly and heroically against heavy odds.}}
+# To attempt to dismiss as nonsense; to ignore or belittle the significance of something; to render unimportant or puny.
+#: {{synonyms|en|belittle|dismiss|pooh-pooh|rubbish}}
+#* {{quote-journal|en|date=June 3 1997|title=Rockies respond to whip|work=Denver Post|passage=&quot;They haven't '''nonsensed''' these workouts. They've taken them and used them very well. I didn't know how they'd respond, but they've responded.&quot;}}
+#* {{quote-book|en|year=2000|author=Leon Garfield; Jason Cockcroft|title=Jack Holborn|page=131|passage=Very commanding: very much 'end of this '''nonsensing''''. Mister Fared spread his hands and shook his thin head imperceptibly, as if to say he understood.}}
+#* {{quote-journal|en|date=March 17 2006|title=Sierra Leone: Petroleum Unit Calls for Auditing|work=AllAfrica.com|passage=He further '''nonsensed''' press suggestions that the Petroleum Unit was set up to assist in the administration of sporting activities.}}
+# {{lb|en|intransitive}} To joke around, to waste time
+#* {{quote-book|en|year=1963|author=C. F. Griffin|title=The Impermanence of Heroes|page=170|passage=When he meant &quot;go and get one&quot; he said to go and get one, with no '''nonsensing''' around about &quot;liking&quot; to get one.}}
+
+===Adjective===
+{{en-adj}}
+
+# [[nonsensical|Nonsensical]].
+# {{lb|en|biochemistry}} Resulting from the substitution of a nucleotide in a sense codon, causing it to become a stop codon (not coding for an amino-acid).
+
+====Translations====
+{{trans-see|nonsensical|nonsensical}}
+
+{{trans-top|resulting from the substitution of a nucleotide in a sense codon, causing it to become a stop codon}}
+* Chinese:
+*: Mandarin: {{t+|cmn|無義|tr=wúyì}}
+* French: {{t+|fr|non-sens}}
+* Italian: {{t|it|senza senso}}
+* Portuguese: {{t|pt|sem sentido}}
+* Spanish: {{t|es|sin sentido}}
+{{trans-bottom}}
+
+===Interjection===
+{{en-intj}}
+
+# {{non-gloss|An emphatic rejection of something one has just heard and does not believe or agree with.}}
+#* {{quote-journal|en|date=2023 January 11|author=Philip Haigh|title=Comment: The worst chaos for 40 years|journal=RAIL|issue=974|page=4|text=The operators present this as a passenger benefit by claiming it provides early notice. '''Nonsense'''! This just means that passengers can't find any information about the train they thought they were catching. It simply disappears.}}
+
+====Translations====
+{{trans-top|emphatic rejection}}
+* Bulgarian: {{t+|bg|глупости|n-p}}
+* Dutch: {{t+|nl|onzin|m}}, {{t+|nl|lariekoek|m}}
+* Esperanto: {{t|eo|dirlididi}}
+* French: {{t+|fr|n'importe quoi !}}
+* German: {{t+|de|papperlapapp}}
+* Hungarian: {{t+|hu|lárifári!}}, {{t+|hu|badarság!}}, {{t+|hu|ostobaság!}}, {{t+|hu|zagyvaság!}}, {{t+|hu|képtelenség!}}, {{t|hu|hiszi a piszi!}}
+* Latin: {{t|la|[[nugae]]!}}, {{t|la|[[gerrae]]!}}
+* Spanish: {{t+|es|tonterías}}, {{t|es|tonteras}}, {{t|es|[[que]] [[tontería]] / [[tontera]]}}
+{{trans-bottom}}
+
+===See also===
+{{col|en|missense|non-sense}}
+
+===Further reading===
+* {{R:OneLook}}
+* {{R:MWO}}
+* {{R:AHD}}
+* {{R:Macmillan}}
+
+==Finnish==
+
+===Etymology===
+From {{bor|fi|en|nonsense}}.
+
+===Pronunciation===
+{{fi-p|nonsens}}
+
+===Noun===
+{{fi-noun}}
+
+# [[#English|nonsense]] {{gloss|type of poetry}}
+
+====Declension====
+{{fi-decl-nalle|nonsens|||a}}
+
+===Further reading===
+* {{R:fi:KTSK|accessdate=2023-07-03}}
+
+==Mauritian Creole==
+
+===Etymology===
+From {{bor|mfe|en|nonsense}}.
+
+===Pronunciation===
+* {{IPA|mfe|/nɒnsɛns/}}
+
+===Noun===
+{{head|mfe|noun}}
+
+# {{l|en|nonsense}}
+
+====Alternative forms====
+* {{alt|mfe|nonsans|nonsens}}</text>
+    <sha1>qzp3r8yz8qf6ndq9pmcrrdd9u2eb9pj</sha1>
+  </revision>
+</page>
+```
+
+ah going to need to drum up a quick parser then
+interesting ok so the parser takes out named entities
+
+ok hacked together a state machine
+leverage the type system

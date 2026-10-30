@@ -1,5 +1,7 @@
 mod database;
+mod dictionary;
 
+use crate::database::SqliteDatabase;
 use ndarray::{Array2, ArrayBase, Dim, OwnedRepr};
 use ort::{
     session::{
@@ -11,8 +13,6 @@ use ort::{
 use std::{path::PathBuf, process::ExitCode};
 use thiserror::Error;
 use tokenizers::Tokenizer;
-
-use crate::database::SqliteDatabase;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -44,6 +44,15 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+
+    match dictionary::test() {
+        Ok(()) => {}
+        Err(err) => {
+            println!("oops {err}");
+
+            return ExitCode::FAILURE;
+        }
+    }
 
     ExitCode::SUCCESS
 }

@@ -56,7 +56,8 @@ fn init_vec_extensions() -> Result<(), Error> {
 
 fn init_tables(connection: &Connection) -> Result<(), Error> {
     init_words(connection)?;
-    init_word_embeddings(connection)
+    init_word_embeddings(connection)?;
+    init_defs(connection)
 }
 
 fn init_word_embeddings(connection: &Connection) -> Result<(), Error> {
@@ -74,8 +75,19 @@ fn init_words(connection: &Connection) -> Result<(), Error> {
     let sql = "
 CREATE TABLE IF NOT EXISTS words (
     id               INTEGER  PRIMARY KEY  AUTOINCREMENT,
-    word             TEXT     UNIQUE       NOT NULL,
-    text_definition  TEXT     NOT NULL
+    word             TEXT     UNIQUE       NOT NULL
+);";
+
+    connection.execute(sql, [])?;
+    Ok(())
+}
+
+fn init_defs(connection: &Connection) -> Result<(), Error> {
+    let sql = "
+CREATE TABLE IF NOT EXISTS defs (
+    id               INTEGER  PRIMARY KEY  AUTOINCREMENT,
+    word_id          INTEGER               NOT NULL,
+    text_definition  TEXT     UNIQUE       NOT NULL
 );";
 
     connection.execute(sql, [])?;
@@ -83,8 +95,19 @@ CREATE TABLE IF NOT EXISTS words (
 }
 
 fn init_indices(connection: &Connection) -> Result<(), Error> {
-    let create_words_word_index = "CREATE INDEX IF NOT EXISTS words_word ON words (word);";
+    init_words_word_index(connection)?;
+    init_defs_word_index(connection)?;
+    Ok(())
+}
 
+fn init_words_word_index(connection: &Connection) -> Result<(), Error> {
+    let create_words_word_index = "CREATE INDEX IF NOT EXISTS words_word ON words (word);";
+    connection.execute(create_words_word_index, [])?;
+    Ok(())
+}
+
+fn init_defs_word_index(connection: &Connection) -> Result<(), Error> {
+    let create_words_word_index = "CREATE INDEX IF NOT EXISTS defs_word_id ON defs (word_id);";
     connection.execute(create_words_word_index, [])?;
     Ok(())
 }
