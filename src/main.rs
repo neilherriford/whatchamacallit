@@ -1,123 +1,96 @@
 mod database;
-mod dictionary;
+mod dump_reader;
+mod entry_parser;
+mod html_entity_renderer;
+mod markup_parser;
+mod markup_renderer;
+mod model;
+mod utils;
 
-use crate::database::SqliteDatabase;
-use ndarray::{Array2, ArrayBase, Dim, OwnedRepr};
-use ort::{
-    session::{
-        Session,
-        builder::{GraphOptimizationLevel, SessionBuilder},
-    },
-    value::Tensor,
+use crate::{
+    dump_reader::{DumpReader, LocalDumpFile},
+    entry_parser::{EntryParser, SimpleEntryParser},
+    html_entity_renderer::SimpleHtmlEntityRenderer,
+    markup_parser::{MarkupParser, SimpleMarkupParser},
+    markup_renderer::{LocalMediaWikiClient, MarkupRenderer, SimpleMarkupRenderer},
 };
-use std::{path::PathBuf, process::ExitCode};
-use thiserror::Error;
-use tokenizers::Tokenizer;
+use std::process::ExitCode;
+use tokio;
 
-#[derive(Error, Debug)]
-pub enum Error {
-    #[error("ORT error: {0}")]
-    OrtError(#[from] ort::Error),
-    #[error("Session builder error: {0}")]
-    SessionBulderError(#[from] ort::Error<SessionBuilder>),
-    #[error("Shape error: {0}")]
-    ShapeError(#[from] ndarray::ShapeError),
-    #[error("General error: {0}")]
-    GeneralError(#[from] Box<dyn std::error::Error + Send + Sync>),
-}
-
-fn main() -> ExitCode {
-    match run("a very cool definition for a word i can't remember") {
-        Ok(data) => println!("done: {data:?}"),
+#[tokio::main]
+async fn main() -> ExitCode {
+    let dump_file = match LocalDumpFile::create_with_default_path() {
+        Ok(dump_file) => Box::new(dump_file),
         Err(err) => {
             println!("oops {err}");
-
-            return ExitCode::FAILURE;
-        }
-    }
-
-    let db = match SqliteDatabase::build() {
-        Ok(db) => db,
-        Err(err) => {
-            println!("oops {err}");
-
             return ExitCode::FAILURE;
         }
     };
 
-    match dictionary::test() {
-        Ok(()) => {}
+    let dump_reader = match DumpReader::new(dump_file) {
+        Ok(dump_reader) => Box::new(dump_reader),
         Err(err) => {
             println!("oops {err}");
-
             return ExitCode::FAILURE;
         }
+    };
+
+    let html_entity_renderer = SimpleHtmlEntityRenderer::default();
+    let markup_renderer = SimpleMarkupRenderer::new(
+        Box::new(html_entity_renderer),
+        Box::new(LocalMediaWikiClient::default()),
+    );
+    let markup_parser = SimpleMarkupParser::default();
+    let entry_parser = SimpleEntryParser::default();
+
+    let mut count = 0;
+
+    for page in dump_reader {
+        let page = match page {
+            Ok(page) => page,
+            Err(err) => {
+                println!("oops {err}");
+                return ExitCode::FAILURE;
+            }
+        };
+
+        println!("{}", page.word);
+        for _idx in 0..page.word.len() {
+            print!("=");
+        }
+        print!("\n");
+
+        for (part_of_speech, entries) in markup_parser.parse(&page.markup) {
+            for definition in entry_parser.parse(part_of_speech, &entries) {
+                println!("part of speech: {}", part_of_speech);
+                print!("labels:         ");
+                if definition.labels.is_empty() {
+                    println!("none")
+                } else {
+                    println!("{}", definition.labels.join(", "));
+                }
+                print!("antonyms:       ");
+                if definition.antonyms.is_empty() {
+                    println!("none")
+                } else {
+                    println!("{}", definition.antonyms.join(", "));
+                }
+
+                match markup_renderer.render(&page.word, &definition.markup).await {
+                    Ok(rendered) => println!("{rendered}\n- - - - -\n\n"),
+                    Err(err) => eprintln!("oops: {err}"),
+                }
+            }
+
+            print!("\n");
+        }
+
+        if count >= 2 {
+            break;
+        }
+
+        count += 1;
     }
 
-    ExitCode::SUCCESS
-}
-
-fn model_file(file_name: &str) -> PathBuf {
-    [
-        env!("CARGO_MANIFEST_DIR"),
-        "models",
-        "all-MiniLM-L6-v2-onnx",
-        file_name,
-    ]
-    .iter()
-    .collect()
-}
-
-fn create_array(
-    ids: Vec<i64>,
-    size: usize,
-) -> Result<ArrayBase<OwnedRepr<i64>, Dim<[usize; 2]>, i64>, Error> {
-    Ok(Array2::from_shape_vec((1, size), ids)?)
-}
-
-fn to_i64s(values: &[u32]) -> Vec<i64> {
-    values.iter().map(|i| *i as i64).collect()
-}
-
-fn run(prompt: &str) -> Result<Vec<f32>, Error> {
-    let env = ort::init().build()?;
-
-    let mut model = Session::builder(&env)?
-        .with_optimization_level(GraphOptimizationLevel::Level1)?
-        .with_intra_threads(4)?
-        .commit_from_file(model_file("model.onnx"))?;
-
-    let tokenizer = Tokenizer::from_file(model_file("tokenizer.json"))?;
-    let tokens = tokenizer.encode(prompt, false).unwrap();
-
-    let ids = to_i64s(&tokens.get_ids());
-    let attention_mask = to_i64s(&tokens.get_attention_mask());
-    let type_ids = to_i64s(&tokens.get_type_ids());
-
-    let tensor_ids = Tensor::from_array(create_array(ids, tokens.len())?)?;
-    let tensor_mask = Tensor::from_array(create_array(attention_mask.clone(), tokens.len())?)?;
-    let tensor_types = Tensor::from_array(create_array(type_ids, tokens.len())?)?;
-
-    let outputs = model.run(ort::inputs![
-        "input_ids" => tensor_ids,
-        "attention_mask" => tensor_mask,
-        "token_type_ids" => tensor_types,
-    ])?;
-
-    let (_, data) = outputs[0].try_extract_tensor::<f32>()?;
-
-    let mut acc: Vec<f32> = vec![0.0; 384];
-    let mut valid_tokens_count: f32 = 0.0;
-
-    for (chunk, mask) in data.chunks_exact(384).zip(attention_mask) {
-        if mask == 0 {
-            continue;
-        }
-        valid_tokens_count += 1.0;
-        for (index, value) in chunk.iter().enumerate() {
-            acc[index] += value;
-        }
-    }
-
-    Ok(acc.iter().map(|val| val / valid_tokens_count).collect())
+    return ExitCode::SUCCESS;
 }

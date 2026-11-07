@@ -374,3 +374,94 @@ interesting ok so the parser takes out named entities
 
 ok hacked together a state machine
 leverage the type system
+
+
+
+ah going to need to drum up a quick parser then
+interesting ok so the parser takes out named entities
+
+
+
+
+
+
+ok hacked together a state machine
+leverage the type system
+
+
+
+20261029
+========
+Ok now a rudimentary MediaWiki parser
+just make a really simple scanner, header to header
+ok next is a list, those should behave similarly
+
+20261101
+========
+testing against an actual file works 
+Positive results but now it's quite complicated 
+Taking a step back, making this much more simple -- only look for 
+specific forms and just ignore the rest.  Assume the general structure
+H2.Language
+H3.Part-Of-Speach
+ul Def
+
+20261102
+========
+So this format is a lot less structured than I would have expected.
+Continuing to experiment with rendering the templates to get an 
+approximate representation
+
+20261104
+========
+After some more tests, it turns out that the templates that render 
+have potential emergent properties.  The real solve here is to 
+use the mediawiki itself to render the copy, then run that through
+an html parser and get the inner text.
+
+Now testing the local server:
+
+```bash
+# templates
+curl http://localhost:8080/api.php \
+ --include \
+ --data-urlencode 'action=expandtemplates' \
+ --data-urlencode "title=$page_title" \
+ --data-urlencode "text=$template" \
+ --data-urlencode 'prop=wikitext' \
+ --data-urlencode 'format=json'
+
+# markup
+curl --include http://localhost:8080/api.php \
+  --data-urlencode 'action=parse' \
+  --data-urlencode "title=$page_title" \
+  --data-urlencode "text=$template" \
+  --data-urlencode 'prop=text' \
+  --data-urlencode 'disablelimitreport=1' \
+  --data-urlencode 'wrapoutputclass=' \
+  --data-urlencode 'format=json' \
+  --data-urlencode 'formatversion=2'
+```
+
+Promising results!
+
+20261105
+========
+Now organizing the the "renderer".  Oof it looks like the the 
+entities need to be rendered manually in a separate pass.
+
+
+
+Slowly adding in al the needed namespaces to the local server.
+Imports are sloooooow, last one took 4 hours 57 minutes, will look
+into optimization later
+
+20261106
+========
+OK baseline is working doing a normalization / clean up pass
+This process is very slow need to gather some performance baselines
+and work on increasing throughput
+maybe sending larger amounts of records through?
+could control chars be used?
+doesn't look like it
+> Textual data should be valid, NFC-normalized Unicode without C0 control characters other than HT (\\t), LF (\\n), and CR (\\r).

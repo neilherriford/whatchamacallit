@@ -4,18 +4,23 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+async-trait = "0.1"
 ndarray = "0.17.2"
 ort = {version = "2.0.0-rc.15", features = ["ndarray"] }
 quick-xml = "0.42.0"
 regex = "1.12.4"
+reqwest = {version = "0.13.5", features = ["json", "query"]}
 rusqlite = {version = "0.41.0", features = ["bundled"]}
 serde = "1.0.229"
 serde_json = "1.0.154"
 sqlite-vec = "0.1.9"
 thiserror = "1"
+tl = "0.7.8"
 tokenizers = "0.23.2"
-tokio = "1.54.1"
+tokio = { version = "1.54.1", features = ["full", ] }
+tokio-util = { version = "0.7", features = ["io"] }
 zerocopy = "0.8.63"
+
 
 [lints.clippy]
 all = { level = "warn", priority = -2 }

@@ -57,6 +57,7 @@ fn init_vec_extensions() -> Result<(), Error> {
 fn init_tables(connection: &Connection) -> Result<(), Error> {
     init_words(connection)?;
     init_word_embeddings(connection)?;
+    init_antonyms(connection)?;
     init_defs(connection)
 }
 
@@ -82,6 +83,18 @@ CREATE TABLE IF NOT EXISTS words (
     Ok(())
 }
 
+fn init_antonyms(connection: &Connection) -> Result<(), Error> {
+    let sql = "
+CREATE TABLE IF NOT EXISTS antonyms (
+    id               INTEGER  PRIMARY KEY  AUTOINCREMENT,
+    left_word_id     INTEGER               NOT NULL,
+    right_word_id    INTEGER               NOT NULL
+);";
+
+    connection.execute(sql, [])?;
+    Ok(())
+}
+
 fn init_defs(connection: &Connection) -> Result<(), Error> {
     let sql = "
 CREATE TABLE IF NOT EXISTS defs (
@@ -89,6 +102,25 @@ CREATE TABLE IF NOT EXISTS defs (
     word_id          INTEGER               NOT NULL,
     text_definition  TEXT     UNIQUE       NOT NULL
 );";
+
+    connection.execute(sql, [])?;
+    Ok(())
+}
+
+fn init_antonym_temp_table(connection: &Connection) -> Result<(), Error> {
+    let sql = "
+CREATE TEMP TABLE IF NOT EXISTS temp.antonyms (
+    id               INTEGER  PRIMARY KEY  AUTOINCREMENT,
+    left_word_id     TEXT                  NOT NULL,
+    right_word_id    TEXT                  NOT NULL
+);";
+
+    connection.execute(sql, [])?;
+    Ok(())
+}
+
+fn init_drop_antonym_temp_table(connection: &Connection) -> Result<(), Error> {
+    let sql = "DROP TABLE IF EXISTS temp.antonyms;";
 
     connection.execute(sql, [])?;
     Ok(())

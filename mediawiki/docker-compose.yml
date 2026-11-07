@@ -1,0 +1,25 @@
+services:
+  db:
+    image: mariadb:11
+    environment:
+      MARIADB_DATABASE: wiki
+      MARIADB_USER: wiki
+      MARIADB_PASSWORD: wiki
+      MARIADB_ROOT_PASSWORD: root
+    volumes:
+      - dbdata:/var/lib/mysql
+
+  mediawiki:
+    build: .
+    depends_on:
+      - db
+    ports:
+      - "127.0.0.1:8080:80"
+    environment:
+      MW_CONFIG_FILE: /config/LocalSettings.php
+    volumes:
+      - ./config:/config
+      - ../dictionary:/dump:ro
+
+volumes:
+  dbdata:

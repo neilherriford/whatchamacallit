@@ -33,3 +33,7 @@ rustc-ice-*.txt
 models/**
 db/**
 dictionary/**
+# these get regnerated
+mediawiki/config
+# ignore local debugger stuff
+.zed/debug.json
