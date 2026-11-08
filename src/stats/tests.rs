@@ -120,3 +120,25 @@ fn stopwatch_reports_the_same_elapsed_time_after_the_first_stop() {
 
     assert_eq!(watch.stop(), first);
 }
+
+#[test]
+fn definition_separator_is_wm_dot_file_separator_symbol() {
+    assert_eq!(DEFINITION_SEPARATOR, "wm.\u{241c}");
+}
+
+#[test]
+fn join_definitions_places_the_separator_on_its_own_paragraph() {
+    let markups = vec!["one".to_string(), "two".to_string()];
+
+    assert_eq!(join_definitions(&markups), "one\n\nwm.\u{241c}\n\ntwo");
+}
+
+#[test]
+fn join_definitions_of_one_definition_has_no_separator() {
+    assert_eq!(join_definitions(&["only".to_string()]), "only");
+}
+
+#[test]
+fn join_definitions_of_none_is_empty() {
+    assert_eq!(join_definitions(&[]), "");
+}

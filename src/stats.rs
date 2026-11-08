@@ -11,6 +11,7 @@ use std::{
 
 const SAMPLE_STRIDE: u64 = 1000;
 const CONCURRENCY: u64 = 1;
+const DEFINITION_SEPARATOR: &str = "wm.\u{241c}";
 
 #[derive(Debug, Clone)]
 pub struct Timing {
@@ -144,13 +145,15 @@ pub async fn run(
         let mut elapsed_render_time = 0.0;
         let mut elapsed_parse_entry = 0.0;
         let mut form_of_count = 0;
-        let mut form_of_render_ms = 0.0;
+        let form_of_render_ms = 0.0;
         let mut render_errors = 0;
         let mut parser_cpu_seconds = 0.0;
         let mut parser_wall_seconds = 0.0;
         let mut lua_seconds = 0.0;
         let mut lua_peak_memory_bytes = 0;
         let mut template_totals: BTreeMap<String, TemplateTotals> = BTreeMap::new();
+
+        let mut markups: Vec<String> = Vec::new();
 
         for (part_of_speech, entries) in parsed_markup {
             let mut timer = Stopwatch::start();
@@ -163,41 +166,40 @@ pub async fn run(
                 definition_templates += definition.markup.matches("{{").count();
                 definition_quotes += definition.markup.matches(" Example quotation: ").count();
 
-                let form_of = is_form_of(&definition.markup);
-                if form_of {
+                if is_form_of(&definition.markup) {
                     form_of_count += 1;
                 }
 
-                let mut timer = Stopwatch::start();
-                let rendered = markup_renderer
-                    .render_report(&page.word, &definition.markup)
-                    .await;
-                let elapsed = timer.stop();
-                elapsed_render_time += elapsed;
-                if form_of {
-                    form_of_render_ms += elapsed;
+                markups.push(definition.markup);
+            }
+        }
+
+        if !markups.is_empty() {
+            let mut timer = Stopwatch::start();
+            let rendered = markup_renderer
+                .render_report(&page.word, &join_definitions(&markups))
+                .await;
+            elapsed_render_time += timer.stop();
+
+            match rendered {
+                Ok(report) => {
+                    parser_cpu_seconds += report.parser_cpu_seconds;
+                    parser_wall_seconds += report.parser_wall_seconds;
+                    lua_seconds += report.lua_seconds;
+                    lua_peak_memory_bytes = lua_peak_memory_bytes.max(report.lua_memory_bytes);
+                    lua_memory_limit_bytes = lua_memory_limit_bytes.max(report.lua_memory_limit_bytes);
+                    lua_cpu_limit_seconds = f64::max(lua_cpu_limit_seconds, report.lua_cpu_limit_seconds);
+
+                    for template in report.templates {
+                        let totals = template_totals.entry(template.name).or_default();
+                        totals.calls += template.calls;
+                        totals.millis += template.millis;
+                    }
                 }
-
-                match rendered {
-                    Ok(report) => {
-                        parser_cpu_seconds += report.parser_cpu_seconds;
-                        parser_wall_seconds += report.parser_wall_seconds;
-                        lua_seconds += report.lua_seconds;
-                        lua_peak_memory_bytes = lua_peak_memory_bytes.max(report.lua_memory_bytes);
-                        lua_memory_limit_bytes = lua_memory_limit_bytes.max(report.lua_memory_limit_bytes);
-                        lua_cpu_limit_seconds = f64::max(lua_cpu_limit_seconds, report.lua_cpu_limit_seconds);
-
-                        for template in report.templates {
-                            let totals = template_totals.entry(template.name).or_default();
-                            totals.calls += template.calls;
-                            totals.millis += template.millis;
-                        }
-                    }
-                    Err(err) => {
-                        eprintln!("❗️{word}: Markup render error: {err}", word = page.word);
-                        error_count += 1;
-                        render_errors += 1;
-                    }
+                Err(err) => {
+                    eprintln!("❗️{word}: Markup render error: {err}", word = page.word);
+                    error_count += 1;
+                    render_errors += 1;
                 }
             }
         }
@@ -240,6 +242,10 @@ pub async fn run(
     );
 
     Ok(())
+}
+
+fn join_definitions(markups: &[String]) -> String {
+    markups.join(&format!("\n\n{DEFINITION_SEPARATOR}\n\n"))
 }
 
 #[cfg(test)]

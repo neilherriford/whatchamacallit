@@ -485,7 +485,6 @@ p95     250.1
 p99     391.2
 max     962.4
 
-
 metric                    value
 ------------------------  -----
 mean ms per def           127.6
@@ -493,6 +492,8 @@ stddev                    75.8
 coefficient of variation  0.59 
 95% CI half-width         4.0  
 
+Throughput: 7.58 definitions/s, 131.9 ms per definition.
+Projection: 66.1 h for 1,804,774 definitions at that rate.
 
 defs_on_page  pages  ms_per_def
 ------------  -----  ----------
@@ -521,6 +522,166 @@ dictionary    9     1603.0     178.1
 bring on      4     1484.0     370.9     
 stink         8     1451.0     181.4     
 jimjam        9     1423.0     158.2     
+```
 
+
+Got some LLM assistance to gather more metrics, and have mediawiki
+give some environmental reports.  Already had some OOM on some more
+complicated words.
+
+Some interesting findings:
 
 ```
+mediawiki reports
+
+part                                  pct
+------------------------------------  -----
+client render time                    100.0
+parser wall time                      88.9
+lua time                              46.9
+parser cpu time                       24.0
+outside the parser (http, php setup)  11.1
+
+template                                 calls  total_ms  ms_per_call
+---------------------------------------  -----  --------  -----------
+Template:no_deprecated_lang_param_usage  770    81352.0   105.7
+Template:lb                              481    53037.0   110.3
+Template:plural_of                       363    38149.0   105.1
+Template:infl_of                         155    16080.0   103.7
+Template:place                           97     11859.0   122.3
+Template:quote-book                      260    10368.0   39.9
+Template:glossary                        49     7244.0    147.8
+Template:quote-journal                   156    6563.0    42.1
+Template:quote-text                      116    6056.0    52.2
+Template:surname                         60     5961.0    99.4
+Template:ux                              66     3805.0    57.6
+Template:alternative_form_of             37     3529.0    95.4
+Template:init_of                         16     3235.0    202.2
+Template:alt_form                        26     2531.0    97.3
+Template:synonym_of                      28     2212.0    79.0
+
+```
+
+
+BRANCH SUMMARY
+==============
+
+This branch, `perf-by-word` is an experiment to go word by word
+instead of definition by definition.
+
+Timing results:
+
+
+# Baseline vs per-word rendering: run0001 against run0002
+
+- **Baseline (run0001):** one MediaWiki request per definition, commit `c130e90`.
+- **This run (run0002):** one request per word with `wm.␜` between definitions, branch `perf-by-word`. Its meta file records `0615ace` because the changes were uncommitted when it ran.
+- **Same sample:** every 1000th page of the dump, 1,396 words and 1,781 definitions in both runs, sequential (concurrency 1), 0 render errors in both.
+- **Delta** is this run minus baseline. Negative time is faster.
+
+## Workload
+
+| Metric                         | Baseline (run0001) | This run (run0002) | Delta | Delta % |
+| ---                            | ---:               | ---:               | ---:  | ---:    |
+| Words (pages with definitions) | 1,396              | 1,396              | 0     | 0.0%    |
+| Definitions                    | 1,781              | 1,781              | 0     | 0.0%    |
+| Render errors                  | 0                  | 0                  | 0     | n/a     |
+| HTTP requests to MediaWiki     | 1,781              | 1,396              | −385  | −21.6%  |
+
+## Elapsed time
+
+| Metric                                            | Baseline (run0001) | This run (run0002) | Delta | Delta % |
+| ---                                               | ---:               | ---:               | ---:  | ---:    |
+| Wall-clock elapsed (s)                            | 266.1              | 212.3              | −53.8 | −20.2%  |
+| Render time, summed (s)                           | 220.6              | 175.3              | −45.2 | −20.5%  |
+| Time outside rendering: dump read and parsing (s) | 45.5               | 36.9               | −8.6  | −18.9%  |
+
+## Throughput and projection
+
+| Metric                                        | Baseline (run0001) | This run (run0002) | Delta | Delta % |
+| ---                                           | ---:               | ---:               | ---:  | ---:    |
+| Definitions per second (render only)          | 8.07               | 10.16              | +2.08 | +25.8%  |
+| Words per second (render only)                | 6.33               | 7.96               | +1.63 | +25.8%  |
+| Mean render ms per definition                 | 123.8              | 98.4               | −25.4 | −20.5%  |
+| Mean render ms per word                       | 158.0              | 125.6              | −32.4 | −20.5%  |
+| Projected render hours, 1,804,774 definitions | 62.1               | 49.4               | −12.7 | −20.5%  |
+| Projected render hours, 1,398,342 words       | 61.4               | 48.8               | −12.6 | −20.5%  |
+
+## Render ms per word (distribution)
+
+| Metric                    | Baseline (run0001) | This run (run0002) | Delta    | Delta % |
+| ---                       | ---:               | ---:               | ---:     | ---:    |
+| Median render ms per word | 120.4              | 117.1              | −3.3     | −2.7%   |
+| p90 render ms per word    | 250.4              | 191.8              | −58.6    | −23.4%  |
+| p95 render ms per word    | 350.1              | 245.5              | −104.6   | −29.9%  |
+| p99 render ms per word    | 1,040.6            | 389.3              | −651.3   | −62.6%  |
+| Max render ms per word    | 4,265.7            | 1,859.4            | −2,406.3 | −56.4%  |
+
+## Render ms per definition (distribution)
+
+| Metric                          | Baseline (run0001) | This run (run0002) | Delta | Delta % |
+| ---                             | ---:               | ---:               | ---:  | ---:    |
+| Median render ms per definition | 118.0              | 114.0              | −4.0  | −3.4%   |
+| p90 render ms per definition    | 172.4              | 157.4              | −15.0 | −8.7%   |
+| p95 render ms per definition    | 207.0              | 193.4              | −13.6 | −6.6%   |
+| p99 render ms per definition    | 321.0              | 296.5              | −24.5 | −7.6%   |
+| Max render ms per definition    | 395.5              | 375.4              | −20.0 | −5.1%   |
+
+## Where the render time goes
+
+| Metric                                                 | Baseline (run0001) | This run (run0002) | Delta | Delta % |
+| ---                                                    | ---:               | ---:               | ---:  | ---:    |
+| Parser wall time, % of render time                     | 88.9               | 89.3               | +0.4  | +0.4%   |
+| Lua time, % of render time                             | 46.9               | 47.2               | +0.4  | +0.8%   |
+| Parser CPU time, % of render time                      | 24.0               | 24.0               | 0     | +0.1%   |
+| Outside the parser (HTTP, PHP setup), % of render time | 11.1               | 10.7               | −0.4  | −3.3%   |
+| Parser wall seconds per definition (ms)                | 110.1              | 87.9               | −22.2 | −20.2%  |
+| Lua ms per definition                                  | 58.0               | 46.5               | −11.5 | −19.9%  |
+
+## Lua memory
+
+| Metric                                | Baseline (run0001) | This run (run0002) | Delta | Delta % |
+| ---                                   | ---:               | ---:               | ---:  | ---:    |
+| Mean Lua peak memory per request (MB) | 14.1               | 14.8               | +0.6  | +4.4%   |
+| Max Lua peak memory per request (MB)  | 60.0               | 120.7              | +60.7 | +101.3% |
+| Max Lua peak memory, % of limit       | 12.0               | 24.1               | +12.1 | +101.3% |
+
+## Words by definition count
+
+| Metric                                               | Baseline (run0001) | This run (run0002) | Delta  | Delta % |
+| ---                                                  | ---:               | ---:               | ---:   | ---:    |
+| Words with 1 definition                              | 1,205              | 1,205              | 0      | 0.0%    |
+| Render ms per definition, words with 1 definition    | 115.3              | 113.3              | −2.0   | −1.7%   |
+| Words with 2-3 definitions                           | 158                | 158                | 0      | 0.0%    |
+| Render ms per definition, words with 2-3 definitions | 121.6              | 72.5               | −49.1  | −40.4%  |
+| Words with 4+ definitions                            | 33                 | 33                 | 0      | 0.0%    |
+| Render ms per definition, words with 4+ definitions  | 172.3              | 59.8               | −112.5 | −65.3%  |
+
+## Quotations
+
+| Metric                                             | Baseline (run0001) | This run (run0002) | Delta | Delta % |
+| ---                                                | ---:               | ---:               | ---:  | ---:    |
+| Render ms per definition, words with no quotations | 105.1              | 95.6               | −9.5  | −9.0%   |
+| Render ms per definition, words with quotations    | 170.0              | 105.4              | −64.5 | −38.0%  |
+
+## Docker resources
+
+| Metric                     | Baseline (run0001) | This run (run0002) | Delta | Delta % |
+| ---                        | ---:               | ---:               | ---:  | ---:    |
+| mediawiki avg CPU cores    | 0.75               | 0.75               | 0     | −0.1%   |
+| mediawiki peak CPU cores   | 1.01               | 1.00               | −0.01 | −0.9%   |
+| mediawiki peak memory (MB) | 12,684             | 12,771             | +87   | +0.7%   |
+| db avg CPU cores           | 0.05               | 0.05               | 0     | −1.7%   |
+| db peak CPU cores          | 0.08               | 0.07               | −0.01 | −14.2%  |
+| db peak memory (MB)        | 289                | 291                | +2    | +0.6%   |
+
+## Reading the numbers
+
+- Per-definition figures for run0002 are the word's request time divided by its definition count.
+- Single run each, so differences of a few percent are within run-to-run noise.
+- Docker memory is cgroup memory.current, which includes page cache.
+
+## Not compared
+
+- Form-of render time: run0002 cannot time individual definitions, so it writes 0.
+- Per-template cost: the timing profile lists only the top 10 templates per request, so batching changes what is visible.

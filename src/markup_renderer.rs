@@ -63,8 +63,8 @@ impl MediaWikiClient for LocalMediaWikiClient {
     async fn request(&self, page_title: &str, markup: &str) -> Result<Value, Error> {
         let response = self
             .client
-            .get(self.endpoint.clone())
-            .query(&self.build_params(page_title, markup))
+            .post(self.endpoint.clone())
+            .form(&self.build_params(page_title, markup))
             .send()
             .await?;
 
