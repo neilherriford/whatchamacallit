@@ -5,6 +5,7 @@ mod html_entity_renderer;
 mod markup_parser;
 mod markup_renderer;
 mod model;
+mod stats;
 mod utils;
 
 use crate::{
@@ -19,6 +20,45 @@ use tokio;
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    generate_samples().await
+}
+
+async fn generate_samples() -> ExitCode {
+    let dump_file = match LocalDumpFile::create_with_default_path() {
+        Ok(dump_file) => Box::new(dump_file),
+        Err(err) => {
+            println!("oops {err}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let mut pages = match DumpReader::new(dump_file) {
+        Ok(dump_reader) => Box::new(dump_reader),
+        Err(err) => {
+            println!("oops {err}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let html_entity_renderer = SimpleHtmlEntityRenderer::default();
+    let markup_renderer = SimpleMarkupRenderer::new(
+        Box::new(html_entity_renderer),
+        Box::new(LocalMediaWikiClient::default()),
+    );
+    let markup_parser = SimpleMarkupParser::default();
+    let entry_parser = SimpleEntryParser::default();
+
+    stats::run(
+        &mut pages,
+        Box::new(markup_parser),
+        Box::new(entry_parser),
+        Box::new(markup_renderer),
+    )
+    .await;
+    return ExitCode::SUCCESS;
+}
+
+async fn rendering_test() -> ExitCode {
     let dump_file = match LocalDumpFile::create_with_default_path() {
         Ok(dump_file) => Box::new(dump_file),
         Err(err) => {

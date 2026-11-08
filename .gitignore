@@ -37,3 +37,5 @@ dictionary/**
 mediawiki/config
 # ignore local debugger stuff
 .zed/debug.json
+# don't version stat runs
+stat-runs/*
