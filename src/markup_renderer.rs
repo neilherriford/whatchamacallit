@@ -47,8 +47,7 @@ impl LocalMediaWikiClient {
             ("action", "parse"),
             ("title", page_title),
             ("text", &markup),
-            ("prop", "text"),
-            ("disablelimitreport", "1"),
+            ("prop", "text|limitreportdata"),
             ("wrapoutputclass", ""),
             ("format", "json"),
             ("formatversion", "2"),
@@ -73,9 +72,29 @@ impl MediaWikiClient for LocalMediaWikiClient {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct TemplateCost {
+    pub name: String,
+    pub calls: u64,
+    pub millis: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct RenderReport {
+    pub text: String,
+    pub parser_cpu_seconds: f64,
+    pub parser_wall_seconds: f64,
+    pub lua_seconds: f64,
+    pub lua_memory_bytes: u64,
+    pub lua_memory_limit_bytes: u64,
+    pub lua_cpu_limit_seconds: f64,
+    pub templates: Vec<TemplateCost>,
+}
+
 #[async_trait]
 pub trait MarkupRenderer {
     async fn render(&self, page_title: &str, markup: &str) -> Result<String, Error>;
+    async fn render_report(&self, page_title: &str, markup: &str) -> Result<RenderReport, Error>;
 }
 
 pub struct SimpleMarkupRenderer {
@@ -103,7 +122,7 @@ impl SimpleMarkupRenderer {
         }
     }
 
-    async fn render_markup(&self, page_title: &str, markup: &str) -> Result<String, Error> {
+    async fn render_markup(&self, page_title: &str, markup: &str) -> Result<RenderReport, Error> {
         let json = self.media_wiki_client.request(page_title, markup).await?;
 
         let parsed = fetch_object_by_key(&json, "parse")?;
@@ -111,26 +130,114 @@ impl SimpleMarkupRenderer {
         let dom = tl::parse(&text, tl::ParserOptions::default())?;
         let parser = dom.parser();
         check_for_wikimedia_errors(&dom, parser)?;
-        Ok(trim_to_string(
+
+        let mut report = extract_limit_report(parsed);
+        report.text = trim_to_string(
             &dom.children()
                 .iter()
                 .filter_map(|handle| handle.get(parser))
                 .map(|node| node.inner_text(parser))
                 .collect::<String>(),
-        ))
+        );
+        Ok(report)
     }
 }
 
 #[async_trait]
 impl MarkupRenderer for SimpleMarkupRenderer {
     async fn render(&self, page_title: &str, markup: &str) -> Result<String, Error> {
+        Ok(self.render_report(page_title, markup).await?.text)
+    }
+
+    async fn render_report(&self, page_title: &str, markup: &str) -> Result<RenderReport, Error> {
         let buffer = strip_refs(&markup);
         let buffer = unwrap_math(&buffer);
-        let buffer = self.render_markup(page_title, &buffer).await?;
-        let result = self.html_entity_renderer.render(&buffer);
+        let mut report = self.render_markup(page_title, &buffer).await?;
+        report.text = self.html_entity_renderer.render(&report.text);
 
-        Ok(result)
+        Ok(report)
     }
+}
+
+fn extract_limit_report(parsed: &Value) -> RenderReport {
+    let mut report = RenderReport::default();
+
+    if let Some(item) = find_report_item(parsed, "limitreport-cputime") {
+        report.parser_cpu_seconds = report_number(item, "0").unwrap_or_default();
+    }
+    if let Some(item) = find_report_item(parsed, "limitreport-walltime") {
+        report.parser_wall_seconds = report_number(item, "0").unwrap_or_default();
+    }
+    if let Some(item) = find_report_item(parsed, "scribunto-limitreport-timeusage") {
+        report.lua_seconds = report_number(item, "0").unwrap_or_default();
+        report.lua_cpu_limit_seconds = report_number(item, "1").unwrap_or_default();
+    }
+    if let Some(item) = find_report_item(parsed, "scribunto-limitreport-virtmemusage") {
+        report.lua_memory_bytes = report_integer(item, "0").unwrap_or_default();
+        report.lua_memory_limit_bytes = report_integer(item, "1").unwrap_or_default();
+    }
+    if let Some(item) = find_report_item(parsed, "limitreport-timingprofile") {
+        report.templates = parse_timing_profile(item);
+    }
+
+    report
+}
+
+fn find_report_item<'a>(parsed: &'a Value, name: &str) -> Option<&'a Value> {
+    parsed
+        .get("limitreportdata")?
+        .as_array()?
+        .iter()
+        .find(|item| item.get("name").and_then(Value::as_str) == Some(name))
+}
+
+fn report_number(item: &Value, index: &str) -> Option<f64> {
+    let value = item.get(index)?;
+    value
+        .as_f64()
+        .or_else(|| value.as_str().and_then(|text| text.trim().parse().ok()))
+}
+
+fn report_integer(item: &Value, index: &str) -> Option<u64> {
+    let value = item.get(index)?;
+    value
+        .as_u64()
+        .or_else(|| value.as_str().and_then(|text| text.trim().parse().ok()))
+}
+
+fn parse_timing_profile(item: &Value) -> Vec<TemplateCost> {
+    let Some(object) = item.as_object() else {
+        return Vec::new();
+    };
+
+    let mut lines = object
+        .iter()
+        .filter_map(|(key, value)| Some((key.parse::<usize>().ok()?, value.as_str()?)))
+        .collect::<Vec<_>>();
+    lines.sort_by_key(|(index, _)| *index);
+
+    lines
+        .into_iter()
+        .filter_map(|(_, line)| parse_timing_line(line))
+        .collect()
+}
+
+fn parse_timing_line(line: &str) -> Option<TemplateCost> {
+    let mut parts = line.split_whitespace();
+    let _percent = parts.next()?;
+    let millis = parts.next()?.parse::<f64>().ok()?;
+    let calls = parts.next()?.parse::<u64>().ok()?;
+    let name = parts.collect::<Vec<_>>().join(" ");
+
+    if name.is_empty() || name == "-total" {
+        return None;
+    }
+
+    Some(TemplateCost {
+        name,
+        calls,
+        millis,
+    })
 }
 
 fn fetch_object_by_key<'a>(json: &'a Value, key: &str) -> Result<&'a Value, Error> {

@@ -465,3 +465,62 @@ maybe sending larger amounts of records through?
 could control chars be used?
 doesn't look like it
 > Textual data should be valid, NFC-normalized Unicode without C0 control characters other than HT (\\t), LF (\\n), and CR (\\r).
+
+OK adding some stats generation here and first glance shows:
+
+```
+stage         pct  
+------------  -----
+render        99.9 
+page load     0.029
+parse markup  0.066
+parse entry   0.005
+
+metric  ms   
+------  -----
+min     6.7  
+median  124.5
+p90     183.3
+p95     250.1
+p99     391.2
+max     962.4
+
+
+metric                    value
+------------------------  -----
+mean ms per def           127.6
+stddev                    75.8 
+coefficient of variation  0.59 
+95% CI half-width         4.0  
+
+
+defs_on_page  pages  ms_per_def
+------------  -----  ----------
+1             1205   126.7     
+2             127    127.5     
+3             31     124.0     
+4             8      185.4     
+5             9      129.9     
+6             4      174.8     
+7             1      125.2     
+8             6      196.0     
+9             2      168.1     
+10+           3      164.9     
+
+slowest pages
+
+word          defs  render_ms  ms_per_def
+------------  ----  ---------  ----------
+choleric      20    3984.0     199.2     
+Page          19    2634.0     138.6     
+Wayne County  16    2454.0     153.4     
+HM            8     2433.0     304.1     
+pity          8     2046.0     255.8     
+obscene       6     1630.0     271.7     
+dictionary    9     1603.0     178.1     
+bring on      4     1484.0     370.9     
+stink         8     1451.0     181.4     
+jimjam        9     1423.0     158.2     
+
+
+```

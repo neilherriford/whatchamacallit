@@ -108,23 +108,23 @@ fn build_params_asks_mediawiki_to_parse_the_markup() {
         params.get("text").map(String::as_str),
         Some("{{lb|en|informal}} meaning")
     );
-    assert_eq!(params.get("prop").map(String::as_str), Some("text"));
     assert_eq!(
-        params.get("disablelimitreport").map(String::as_str),
-        Some("1")
+        params.get("prop").map(String::as_str),
+        Some("text|limitreportdata")
     );
+    assert!(!params.contains_key("disablelimitreport"));
     assert_eq!(params.get("wrapoutputclass").map(String::as_str), Some(""));
     assert_eq!(params.get("format").map(String::as_str), Some("json"));
     assert_eq!(params.get("formatversion").map(String::as_str), Some("2"));
 }
 
 #[test]
-fn build_params_sends_exactly_eight_parameters() {
+fn build_params_sends_exactly_seven_parameters() {
     assert_eq!(
         LocalMediaWikiClient::default()
             .build_params("word", "text")
             .len(),
-        8
+        7
     );
 }
 
@@ -644,4 +644,261 @@ fn is_exiting_math_matches_the_closing_tag_at_the_index() {
 
     assert!(is_exiting_math(&text, 1));
     assert!(!is_exiting_math(&text, 0));
+}
+
+fn page_with_report(html: &str, report: Value) -> Reply {
+    Reply::Json(json!({"parse": {"text": html, "limitreportdata": report}}))
+}
+
+fn full_report() -> Value {
+    json!([
+        {"name": "limitreport-cputime", "0": "0.074"},
+        {"name": "limitreport-walltime", "0": "0.293"},
+        {"name": "limitreport-ppvisitednodes", "0": 237, "1": 1000000},
+        {"name": "scribunto-limitreport-timeusage", "0": "0.180", "1": "7"},
+        {"name": "scribunto-limitreport-virtmemusage", "0": 38928384, "1": 524288000},
+        {"name": "limitreport-timingprofile",
+            "0": "100.00%  289.314      1 -total",
+            "1": " 56.18%  162.545      1 Template:lb",
+            "2": " 43.79%  126.690      2 Template:RQ:Dickens_Old_Curiosity_Shop"
+        },
+        {"name": "cachereport-ttl", "0": 86400}
+    ])
+}
+
+#[tokio::test]
+async fn render_report_returns_the_rendered_text() {
+    let harness = harness(page_with_report("<p>hello</p>", full_report()));
+    let report = harness.renderer.render_report("word", "text").await;
+
+    assert_eq!(report.map(|r| r.text).ok(), Some("mock:hello".to_string()));
+}
+
+#[tokio::test]
+async fn render_report_reads_the_parser_times() {
+    let harness = harness(page_with_report("<p>x</p>", full_report()));
+    let report = harness.renderer.render_report("word", "text").await.ok();
+
+    assert_eq!(report.as_ref().map(|r| r.parser_cpu_seconds), Some(0.074));
+    assert_eq!(report.as_ref().map(|r| r.parser_wall_seconds), Some(0.293));
+}
+
+#[tokio::test]
+async fn render_report_reads_the_lua_time_and_its_limit() {
+    let harness = harness(page_with_report("<p>x</p>", full_report()));
+    let report = harness.renderer.render_report("word", "text").await.ok();
+
+    assert_eq!(report.as_ref().map(|r| r.lua_seconds), Some(0.18));
+    assert_eq!(report.as_ref().map(|r| r.lua_cpu_limit_seconds), Some(7.0));
+}
+
+#[tokio::test]
+async fn render_report_reads_the_lua_memory_and_its_limit() {
+    let harness = harness(page_with_report("<p>x</p>", full_report()));
+    let report = harness.renderer.render_report("word", "text").await.ok();
+
+    assert_eq!(report.as_ref().map(|r| r.lua_memory_bytes), Some(38928384));
+    assert_eq!(
+        report.as_ref().map(|r| r.lua_memory_limit_bytes),
+        Some(524288000)
+    );
+}
+
+#[tokio::test]
+async fn render_report_reads_template_costs_without_the_total_line() {
+    let harness = harness(page_with_report("<p>x</p>", full_report()));
+    let report = harness.renderer.render_report("word", "text").await.ok();
+
+    assert_eq!(
+        report.map(|r| r.templates),
+        Some(vec![
+            TemplateCost {
+                name: "Template:lb".to_string(),
+                calls: 1,
+                millis: 162.545
+            },
+            TemplateCost {
+                name: "Template:RQ:Dickens_Old_Curiosity_Shop".to_string(),
+                calls: 2,
+                millis: 126.69
+            },
+        ])
+    );
+}
+
+#[tokio::test]
+async fn render_report_defaults_to_zeros_when_the_report_is_missing() {
+    let harness = harness(page("<p>x</p>"));
+    let report = harness.renderer.render_report("word", "text").await.ok();
+
+    assert_eq!(
+        report,
+        Some(RenderReport {
+            text: "mock:x".to_string(),
+            ..RenderReport::default()
+        })
+    );
+}
+
+#[tokio::test]
+async fn render_report_ignores_unrelated_report_items() {
+    let harness = harness(page_with_report(
+        "<p>x</p>",
+        json!([{"name": "cachereport-ttl", "0": 86400}]),
+    ));
+    let report = harness.renderer.render_report("word", "text").await.ok();
+
+    assert_eq!(report.map(|r| r.lua_memory_bytes), Some(0));
+}
+
+#[tokio::test]
+async fn render_report_ignores_a_report_that_is_not_an_array() {
+    let harness = harness(page_with_report("<p>x</p>", json!({"name": "oops"})));
+    let report = harness.renderer.render_report("word", "text").await.ok();
+
+    assert_eq!(report.map(|r| r.lua_seconds), Some(0.0));
+}
+
+#[tokio::test]
+async fn render_report_accepts_numeric_values_for_string_fields() {
+    let harness = harness(page_with_report(
+        "<p>x</p>",
+        json!([{"name": "scribunto-limitreport-timeusage", "0": 0.25, "1": 7}]),
+    ));
+    let report = harness.renderer.render_report("word", "text").await.ok();
+
+    assert_eq!(report.as_ref().map(|r| r.lua_seconds), Some(0.25));
+    assert_eq!(report.map(|r| r.lua_cpu_limit_seconds), Some(7.0));
+}
+
+#[tokio::test]
+async fn render_report_accepts_string_values_for_integer_fields() {
+    let harness = harness(page_with_report(
+        "<p>x</p>",
+        json!([{"name": "scribunto-limitreport-virtmemusage", "0": "1024", "1": "2048"}]),
+    ));
+    let report = harness.renderer.render_report("word", "text").await.ok();
+
+    assert_eq!(report.as_ref().map(|r| r.lua_memory_bytes), Some(1024));
+    assert_eq!(report.map(|r| r.lua_memory_limit_bytes), Some(2048));
+}
+
+#[tokio::test]
+async fn render_report_skips_unparseable_timing_lines() {
+    let harness = harness(page_with_report(
+        "<p>x</p>",
+        json!([{"name": "limitreport-timingprofile",
+            "0": "garbage",
+            "1": " 10.00%  5.5      3 Template:ok",
+            "2": " 10.00%  fast      3 Template:bad",
+            "3": " 10.00%  5.5      many Template:bad2",
+            "4": " 10.00%  5.5      3"
+        }]),
+    ));
+    let report = harness.renderer.render_report("word", "text").await.ok();
+
+    assert_eq!(
+        report.map(|r| r.templates),
+        Some(vec![TemplateCost {
+            name: "Template:ok".to_string(),
+            calls: 3,
+            millis: 5.5
+        }])
+    );
+}
+
+#[tokio::test]
+async fn render_report_orders_timing_lines_numerically() {
+    let lines = (0..12)
+        .map(|index| {
+            (
+                index.to_string(),
+                Value::String(format!("1.00%  1.0      {index} Template:t{index}")),
+            )
+        })
+        .chain(std::iter::once((
+            "name".to_string(),
+            Value::String("limitreport-timingprofile".to_string()),
+        )))
+        .collect::<serde_json::Map<_, _>>();
+    let harness = harness(page_with_report("<p>x</p>", json!([Value::Object(lines)])));
+    let report = harness.renderer.render_report("word", "text").await.ok();
+
+    assert_eq!(
+        report.map(|r| r.templates.iter().map(|t| t.calls).collect::<Vec<_>>()),
+        Some((0..12).collect::<Vec<u64>>())
+    );
+}
+
+#[tokio::test]
+async fn render_report_keeps_template_names_with_spaces() {
+    let harness = harness(page_with_report(
+        "<p>x</p>",
+        json!([{"name": "limitreport-timingprofile", "0": " 5.00%  2.5      1 Template:two words"}]),
+    ));
+    let report = harness.renderer.render_report("word", "text").await.ok();
+
+    assert_eq!(
+        report.map(|r| r.templates.iter().map(|t| t.name.clone()).collect::<Vec<_>>()),
+        Some(vec!["Template:two words".to_string()])
+    );
+}
+
+#[tokio::test]
+async fn render_report_leaves_the_report_comment_out_of_the_text() {
+    let html = "<p>hello</p>\n<!-- \nNewPP limit report\nLua time usage: 0.1\n-->";
+    let harness = harness(page_with_report(html, full_report()));
+    let report = harness.renderer.render_report("word", "text").await.ok();
+
+    assert_eq!(report.map(|r| r.text), Some("mock:hello".to_string()));
+}
+
+#[tokio::test]
+async fn render_report_fails_when_the_fragment_has_an_error_element() {
+    let harness = harness(page_with_report(
+        "<span class=\"error\">Lua error</span>",
+        full_report(),
+    ));
+    let report = harness.renderer.render_report("word", "text").await;
+
+    assert!(matches!(report, Err(Error::RenderingError(_))));
+}
+
+#[tokio::test]
+async fn render_report_propagates_client_failures() {
+    let harness = harness(Reply::Failure("boom".to_string()));
+    let report = harness.renderer.render_report("word", "text").await;
+
+    assert!(matches!(report, Err(Error::RenderingError(message)) if message == "boom"));
+}
+
+#[tokio::test]
+async fn render_and_render_report_return_the_same_text() {
+    let harness = harness(page_with_report("<p>same</p>", full_report()));
+    let plain = harness.renderer.render("word", "text").await.ok();
+    let report = harness.renderer.render_report("word", "text").await.ok();
+
+    assert_eq!(plain, report.map(|r| r.text));
+}
+
+#[test]
+fn parse_timing_line_reads_percent_millis_calls_and_name() {
+    assert_eq!(
+        parse_timing_line("  5.89%   17.029      3 Template:num"),
+        Some(TemplateCost {
+            name: "Template:num".to_string(),
+            calls: 3,
+            millis: 17.029
+        })
+    );
+}
+
+#[test]
+fn parse_timing_line_rejects_the_total_line() {
+    assert_eq!(parse_timing_line("100.00%  289.314      1 -total"), None);
+}
+
+#[test]
+fn parse_timing_line_rejects_an_empty_line() {
+    assert_eq!(parse_timing_line(""), None);
 }

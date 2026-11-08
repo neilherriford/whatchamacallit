@@ -15,7 +15,11 @@ use crate::{
     markup_parser::{MarkupParser, SimpleMarkupParser},
     markup_renderer::{LocalMediaWikiClient, MarkupRenderer, SimpleMarkupRenderer},
 };
-use std::process::ExitCode;
+use std::{
+    fs::File,
+    io::{BufWriter, Write},
+    process::ExitCode,
+};
 use tokio;
 
 #[tokio::main]
@@ -48,13 +52,38 @@ async fn generate_samples() -> ExitCode {
     let markup_parser = SimpleMarkupParser::default();
     let entry_parser = SimpleEntryParser::default();
 
-    stats::run(
+    let prefix = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "stat-runs/latest".to_string());
+    let mut templates_out = match File::create(format!("{prefix}-templates.csv")) {
+        Ok(file) => BufWriter::new(file),
+        Err(err) => {
+            println!("oops {err}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let mut meta_out = match File::create(format!("{prefix}-meta.csv")) {
+        Ok(file) => BufWriter::new(file),
+        Err(err) => {
+            println!("oops {err}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let result = stats::run(
         &mut pages,
         Box::new(markup_parser),
         Box::new(entry_parser),
         Box::new(markup_renderer),
+        &mut templates_out,
+        &mut meta_out,
     )
     .await;
+
+    if let Err(err) = result.and_then(|()| templates_out.flush()).and_then(|()| meta_out.flush()) {
+        println!("oops {err}");
+        return ExitCode::FAILURE;
+    }
     return ExitCode::SUCCESS;
 }
 
