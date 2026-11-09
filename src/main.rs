@@ -1,6 +1,7 @@
 mod database;
 mod dump_reader;
 mod entry_parser;
+mod failure_log;
 mod html_entity_renderer;
 mod markup_parser;
 mod markup_renderer;
