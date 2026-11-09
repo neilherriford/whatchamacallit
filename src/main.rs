@@ -325,6 +325,14 @@ async fn generate_samples(prefix: String) -> ExitCode {
     let markup_parser = SimpleMarkupParser::default();
     let entry_parser = SimpleEntryParser::default();
 
+    let title_dependency = match load_title_dependency() {
+        Ok(title_dependency) => title_dependency,
+        Err(err) => {
+            println!("oops {err}");
+            return ExitCode::FAILURE;
+        }
+    };
+
     let mut templates_out = match File::create(format!("{prefix}-templates.csv")) {
         Ok(file) => BufWriter::new(file),
         Err(err) => {
@@ -344,13 +352,17 @@ async fn generate_samples(prefix: String) -> ExitCode {
         &mut pages,
         Box::new(markup_parser),
         Box::new(entry_parser),
-        Box::new(markup_renderer),
+        Arc::new(markup_renderer),
+        Box::new(title_dependency),
         &mut templates_out,
         &mut meta_out,
     )
     .await;
 
-    if let Err(err) = result.and_then(|()| templates_out.flush()).and_then(|()| meta_out.flush()) {
+    if let Err(err) = result
+        .and_then(|()| templates_out.flush())
+        .and_then(|()| meta_out.flush())
+    {
         println!("oops {err}");
         return ExitCode::FAILURE;
     }
