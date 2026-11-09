@@ -6,6 +6,7 @@ mod html_entity_renderer;
 mod markup_parser;
 mod markup_renderer;
 mod model;
+mod pipeline;
 mod stats;
 mod title_dependency;
 mod utils;
