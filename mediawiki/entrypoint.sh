@@ -19,9 +19,10 @@ wfLoadExtension( 'Poem' );
 wfLoadExtension( 'LabeledSectionTransclusion' );
 wfLoadExtension( 'CharInsert' );
 wfLoadExtension( 'wikihiero' );
-$wgScribuntoDefaultEngine = 'luastandalone';
+$wgScribuntoDefaultEngine = 'luasandbox';
 $wgScribuntoEngineConf['luastandalone']['luaPath'] = '/usr/bin/lua5.1';
 $wgScribuntoEngineConf['luastandalone']['memoryLimit'] = 500 * 1024 * 1024;
+$wgScribuntoEngineConf['luasandbox']['memoryLimit'] = 500 * 1024 * 1024;
 // Wiktionary's Appendix namespace (and its talk pair). MediaWiki does not define it by default, so
 // without these lines "Appendix:Glossary" is treated as a main-namespace title and the import skips it.
 $wgExtraNamespaces[100] = 'Appendix';

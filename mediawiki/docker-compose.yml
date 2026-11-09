@@ -1,6 +1,7 @@
 services:
   db:
     image: mariadb:11
+    command: ["--innodb-buffer-pool-size=4G"]
     environment:
       MARIADB_DATABASE: wiki
       MARIADB_USER: wiki
@@ -19,6 +20,7 @@ services:
       MW_CONFIG_FILE: /config/LocalSettings.php
     volumes:
       - ./config:/config
+      - ./php-tuning.ini:/usr/local/etc/php/conf.d/zz-tuning.ini:ro
       - ../dictionary:/dump:ro
 
 volumes:
