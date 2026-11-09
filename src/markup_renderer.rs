@@ -92,9 +92,26 @@ pub struct RenderReport {
 }
 
 #[async_trait]
-pub trait MarkupRenderer {
+pub trait MarkupRenderer: Send + Sync {
     async fn render(&self, page_title: &str, markup: &str) -> Result<String, Error>;
     async fn render_report(&self, page_title: &str, markup: &str) -> Result<RenderReport, Error>;
+}
+
+const DEFINITION_SEPARATOR: &str = "wm.\u{241f}";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DefinitionOutcome {
+    Rendered(String),
+    Failed(String),
+}
+
+#[async_trait]
+pub trait DefinitionRenderer: Send + Sync {
+    async fn render_definitions(
+        &self,
+        page_title: &str,
+        definitions: &[String],
+    ) -> Result<Vec<DefinitionOutcome>, Error>;
 }
 
 pub struct SimpleMarkupRenderer {
@@ -126,7 +143,7 @@ impl SimpleMarkupRenderer {
         let json = self.media_wiki_client.request(page_title, markup).await?;
 
         let parsed = fetch_object_by_key(&json, "parse")?;
-        let text = fetch_string_by_key(&parsed, "text")?;
+        let text = strip_style_elements(&fetch_string_by_key(&parsed, "text")?);
         let dom = tl::parse(&text, tl::ParserOptions::default())?;
         let parser = dom.parser();
         check_for_wikimedia_errors(&dom, parser)?;
@@ -141,6 +158,70 @@ impl SimpleMarkupRenderer {
         );
         Ok(report)
     }
+
+    fn split_response(&self, html: &str, expected: usize) -> Result<Vec<DefinitionOutcome>, Error> {
+        let html = &strip_style_elements(html);
+        let dom = tl::parse(html, tl::ParserOptions::default())?;
+        let parser = dom.parser();
+        let text = dom
+            .children()
+            .iter()
+            .filter_map(|handle| handle.get(parser))
+            .map(|node| node.inner_text(parser))
+            .collect::<String>();
+        let pieces = text.split(DEFINITION_SEPARATOR).collect::<Vec<_>>();
+
+        if pieces.len() != expected {
+            return Err(Error::RenderingError(format!(
+                "expected {expected} definitions, found {found}",
+                found = pieces.len()
+            )));
+        }
+
+        let mut messages: HashMap<usize, String> = HashMap::new();
+        for start in error_starts(html) {
+            let position = html[..start].matches(DEFINITION_SEPARATOR).count();
+            messages.entry(position).or_insert_with(|| {
+                self.html_entity_renderer
+                    .render(&error_message(html, start))
+            });
+        }
+
+        Ok(pieces
+            .iter()
+            .enumerate()
+            .map(|(index, piece)| match messages.remove(&index) {
+                Some(message) => DefinitionOutcome::Failed(message),
+                None => DefinitionOutcome::Rendered(
+                    self.html_entity_renderer.render(&trim_to_string(piece)),
+                ),
+            })
+            .collect())
+    }
+}
+
+#[async_trait]
+impl DefinitionRenderer for SimpleMarkupRenderer {
+    async fn render_definitions(
+        &self,
+        page_title: &str,
+        definitions: &[String],
+    ) -> Result<Vec<DefinitionOutcome>, Error> {
+        if definitions.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let markup = definitions
+            .iter()
+            .map(|markup| prepare_markup(markup))
+            .collect::<Vec<_>>()
+            .join(&format!("\n\n{DEFINITION_SEPARATOR}\n\n"));
+        let json = self.media_wiki_client.request(page_title, &markup).await?;
+        let parsed = fetch_object_by_key(&json, "parse")?;
+        let html = fetch_string_by_key(parsed, "text")?;
+
+        self.split_response(&html, definitions.len())
+    }
 }
 
 #[async_trait]
@@ -150,8 +231,7 @@ impl MarkupRenderer for SimpleMarkupRenderer {
     }
 
     async fn render_report(&self, page_title: &str, markup: &str) -> Result<RenderReport, Error> {
-        let buffer = strip_refs(&markup);
-        let buffer = unwrap_math(&buffer);
+        let buffer = prepare_markup(markup);
         let mut report = self.render_markup(page_title, &buffer).await?;
         report.text = self.html_entity_renderer.render(&report.text);
 
@@ -172,7 +252,9 @@ fn extract_limit_report(parsed: &Value) -> RenderReport {
         report.lua_seconds = report_number(item, "0").unwrap_or_default();
         report.lua_cpu_limit_seconds = report_number(item, "1").unwrap_or_default();
     }
-    if let Some(item) = find_report_item(parsed, "scribunto-limitreport-virtmemusage") {
+    if let Some(item) = find_report_item(parsed, "scribunto-limitreport-virtmemusage")
+        .or_else(|| find_report_item(parsed, "scribunto-limitreport-memusage"))
+    {
         report.lua_memory_bytes = report_integer(item, "0").unwrap_or_default();
         report.lua_memory_limit_bytes = report_integer(item, "1").unwrap_or_default();
     }
@@ -304,13 +386,269 @@ fn strip_refs(text: &str) -> String {
     out
 }
 
-const OPEN_MATH: &str = "<math";
-const CLOSE_MATH: &str = "</math>";
+const OPEN_STYLE: &str = "<style";
+const CLOSE_STYLE: &str = "</style>";
 
-fn unwrap_math(text: &str) -> String {
+fn strip_style_elements(html: &str) -> String {
+    let mut result = String::new();
+    let html = html.chars().collect::<Vec<_>>();
+    let mut index = 0;
+
+    loop {
+        if index >= html.len() {
+            break;
+        }
+
+        if starts_with_at(&html, index, OPEN_STYLE)
+            && matches!(html.get(index + OPEN_STYLE.len()), Some(ch) if ch.is_whitespace() || *ch == '>')
+        {
+            if let Some(close) = find_from(&html, index + OPEN_STYLE.len(), CLOSE_STYLE) {
+                index = close + CLOSE_STYLE.len();
+                continue;
+            }
+        }
+
+        result.push(html[index]);
+        index += 1;
+    }
+
+    result
+}
+
+pub(crate) fn prepare_markup(markup: &str) -> String {
+    protect_math(&remove_score(&strip_refs(markup)))
+}
+
+const OPEN_SCORE: &str = "<score";
+const CLOSE_SCORE: &str = "</score>";
+
+fn remove_score(text: &str) -> String {
     let mut result = String::new();
     let text = text.chars().collect::<Vec<_>>();
     let mut index = 0;
+
+    loop {
+        if index >= text.len() {
+            break;
+        }
+
+        if starts_with_at(&text, index, OPEN_SCORE)
+            && matches!(text.get(index + OPEN_SCORE.len()), Some(ch) if ch.is_whitespace() || *ch == '>' || *ch == '/')
+        {
+            if let Some(open_end) = find_from(&text, index + OPEN_SCORE.len(), ">") {
+                if text[open_end - 1] == '/' {
+                    index = open_end + 1;
+                    continue;
+                }
+
+                if let Some(close) = find_from(&text, open_end + 1, CLOSE_SCORE) {
+                    index = close + CLOSE_SCORE.len();
+                    continue;
+                }
+
+                result.extend(&text[index..=open_end]);
+                index = open_end + 1;
+                continue;
+            }
+        }
+
+        result.push(text[index]);
+        index += 1;
+    }
+
+    result
+}
+
+fn remove_nowiki(text: &str) -> String {
+    let mut result = String::new();
+    let text = text.chars().collect::<Vec<_>>();
+    let mut index = 0;
+
+    loop {
+        if index >= text.len() {
+            break;
+        }
+
+        if starts_with_at(&text, index, OPEN_NOWIKI) {
+            match find_from(&text, index + OPEN_NOWIKI.len(), CLOSE_NOWIKI) {
+                Some(close) => index = close + CLOSE_NOWIKI.len(),
+                None => break,
+            }
+            continue;
+        }
+
+        result.push(text[index]);
+        index += 1;
+    }
+
+    result
+}
+
+pub(crate) fn has_unterminated_template(markup: &str) -> bool {
+    let text = remove_nowiki(markup).chars().collect::<Vec<_>>();
+    let mut depth = 0usize;
+    let mut index = 0;
+
+    loop {
+        if index >= text.len() {
+            break;
+        }
+
+        if starts_with_at(&text, index, "{{") {
+            depth += 1;
+            index += 2;
+            continue;
+        }
+
+        if starts_with_at(&text, index, "}}") {
+            depth = depth.saturating_sub(1);
+            index += 2;
+            continue;
+        }
+
+        index += 1;
+    }
+
+    depth > 0
+}
+
+fn has_error_class(tag: &str) -> bool {
+    tag.split("class=\"").skip(1).any(|after| {
+        after
+            .split('"')
+            .next()
+            .is_some_and(|value| value.split_whitespace().any(|token| token == "error"))
+    })
+}
+
+fn error_starts(html: &str) -> Vec<usize> {
+    let bytes = html.as_bytes();
+    let mut found = Vec::new();
+    let mut index = 0;
+
+    loop {
+        if index >= bytes.len() {
+            break;
+        }
+
+        if bytes[index] == b'<' {
+            let Some(end) = bytes[index..].iter().position(|byte| *byte == b'>') else {
+                break;
+            };
+
+            if bytes.get(index + 1).is_some_and(u8::is_ascii_alphabetic)
+                && has_error_class(&html[index..index + end])
+            {
+                found.push(index);
+            }
+
+            index += end + 1;
+            continue;
+        }
+
+        index += 1;
+    }
+
+    found
+}
+
+fn strip_tags(text: &str) -> String {
+    let mut out = String::new();
+    let mut inside = false;
+
+    for ch in text.chars() {
+        match ch {
+            '<' => inside = true,
+            '>' if inside => inside = false,
+            _ if !inside => out.push(ch),
+            _ => {}
+        }
+    }
+
+    out
+}
+
+fn element_body_end(body: &str, name: &str) -> usize {
+    let bytes = body.as_bytes();
+    let open_tag = format!("<{name}");
+    let close_tag = format!("</{name}>");
+    let mut depth = 1usize;
+    let mut index = 0;
+
+    loop {
+        if index >= bytes.len() {
+            break;
+        }
+
+        if bytes[index..].starts_with(close_tag.as_bytes()) {
+            depth -= 1;
+            if depth == 0 {
+                return index;
+            }
+            index += close_tag.len();
+            continue;
+        }
+
+        if bytes[index..].starts_with(open_tag.as_bytes()) {
+            depth += 1;
+            index += open_tag.len();
+            continue;
+        }
+
+        index += 1;
+    }
+
+    body.len()
+}
+
+fn error_message(html: &str, start: usize) -> String {
+    let rest = &html[start..];
+    let Some(open_end) = rest.find('>') else {
+        return String::new();
+    };
+    let name = rest[1..open_end]
+        .split(|c: char| c.is_whitespace() || c == '/')
+        .next()
+        .unwrap_or_default();
+    let body = &rest[open_end + 1..];
+    let body = &body[..element_body_end(body, name)];
+
+    strip_tags(body)
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .chars()
+        .take(400)
+        .collect()
+}
+
+const OPEN_MATH: &str = "<math";
+const CLOSE_MATH: &str = "</math>";
+const OPEN_NOWIKI: &str = "<nowiki>";
+const CLOSE_NOWIKI: &str = "</nowiki>";
+
+fn starts_with_at(text: &[char], index: usize, pattern: &str) -> bool {
+    pattern
+        .chars()
+        .enumerate()
+        .all(|(offset, ch)| text.get(index + offset) == Some(&ch))
+}
+
+fn find_from(text: &[char], from: usize, pattern: &str) -> Option<usize> {
+    (from..text.len()).find(|index| starts_with_at(text, *index, pattern))
+}
+
+fn has_closing_math(text: &[char], from: usize) -> bool {
+    let close = CLOSE_MATH.chars().collect::<Vec<_>>();
+
+    (from..text.len()).any(|index| text[index..].starts_with(&close))
+}
+
+fn protect_math(text: &str) -> String {
+    let mut result = String::new();
+    let text = text.chars().collect::<Vec<_>>();
+    let mut index = 0;
+    let mut inside = false;
 
     loop {
         if index >= text.len() {
@@ -332,6 +670,10 @@ fn unwrap_math(text: &str) -> String {
             }
 
             if valid {
+                if !inside && has_closing_math(&text, new_index) {
+                    result.push_str(OPEN_NOWIKI);
+                    inside = true;
+                }
                 index = new_index;
             } else {
                 result.push(text[index]);
@@ -342,6 +684,10 @@ fn unwrap_math(text: &str) -> String {
         }
 
         if is_exiting_math(&text, index) {
+            if inside {
+                result.push_str(CLOSE_NOWIKI);
+                inside = false;
+            }
             index += CLOSE_MATH.len();
             continue;
         }

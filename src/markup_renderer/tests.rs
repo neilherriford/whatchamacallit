@@ -188,7 +188,7 @@ async fn render_strips_refs_before_sending() {
 }
 
 #[tokio::test]
-async fn render_unwraps_math_before_sending() {
+async fn render_protects_math_before_sending() {
     let harness = harness(page("<p>ok</p>"));
     let _ = harness
         .renderer
@@ -197,12 +197,12 @@ async fn render_unwraps_math_before_sending() {
 
     assert_eq!(
         recorded(&harness.requests),
-        vec![("word".to_string(), "so x^2 is".to_string())]
+        vec![("word".to_string(), "so <nowiki>x^2</nowiki> is".to_string())]
     );
 }
 
 #[tokio::test]
-async fn render_strips_refs_and_unwraps_math_in_the_same_request() {
+async fn render_strips_refs_and_protects_math_in_the_same_request() {
     let harness = harness(page("<p>ok</p>"));
     let _ = harness
         .renderer
@@ -211,7 +211,10 @@ async fn render_strips_refs_and_unwraps_math_in_the_same_request() {
 
     assert_eq!(
         recorded(&harness.requests),
-        vec![("word".to_string(), "ab".to_string())]
+        vec![(
+            "word".to_string(),
+            "<nowiki>a</nowiki><nowiki>b</nowiki>".to_string()
+        )]
     );
 }
 
@@ -572,58 +575,99 @@ fn strip_refs_preserves_non_ascii_text() {
 }
 
 #[test]
-fn unwrap_math_removes_the_tags_and_keeps_the_formula() {
-    assert_eq!(unwrap_math("<math>x^2</math>"), "x^2");
+fn protect_math_wraps_the_formula_in_nowiki() {
+    assert_eq!(protect_math("<math>x^2</math>"), "<nowiki>x^2</nowiki>");
 }
 
 #[test]
-fn unwrap_math_removes_tags_with_attributes() {
+fn protect_math_replaces_tags_with_attributes() {
     assert_eq!(
-        unwrap_math(r#"<math display="block">x</math>"#),
-        "x"
+        protect_math(r#"<math display="block">x</math>"#),
+        "<nowiki>x</nowiki>"
     );
-    assert_eq!(unwrap_math("<math chem>H2O</math>"), "H2O");
-    assert_eq!(unwrap_math(r#"<math alt= "y">y</math>"#), "y");
+    assert_eq!(
+        protect_math("<math chem>H2O</math>"),
+        "<nowiki>H2O</nowiki>"
+    );
+    assert_eq!(
+        protect_math(r#"<math alt= "y">y</math>"#),
+        "<nowiki>y</nowiki>"
+    );
 }
 
 #[test]
-fn unwrap_math_keeps_surrounding_text() {
-    assert_eq!(unwrap_math("so <math>a+b</math> is"), "so a+b is");
+fn protect_math_keeps_surrounding_text() {
+    assert_eq!(
+        protect_math("so <math>a+b</math> is"),
+        "so <nowiki>a+b</nowiki> is"
+    );
 }
 
 #[test]
-fn unwrap_math_handles_several_formulas() {
-    assert_eq!(unwrap_math("<math>a</math> and <math>b</math>"), "a and b");
+fn protect_math_handles_several_formulas() {
+    assert_eq!(
+        protect_math("<math>a</math> and <math>b</math>"),
+        "<nowiki>a</nowiki> and <nowiki>b</nowiki>"
+    );
 }
 
 #[test]
-fn unwrap_math_ignores_tags_that_only_start_with_math() {
-    assert_eq!(unwrap_math("<mathematics>"), "<mathematics>");
+fn protect_math_keeps_equals_signs_and_pipes_inside_the_wrapper() {
+    assert_eq!(
+        protect_math("{{ux|en|if <math>f(x) = |x|</math>}}"),
+        "{{ux|en|if <nowiki>f(x) = |x|</nowiki>}}"
+    );
 }
 
 #[test]
-fn unwrap_math_keeps_an_unterminated_open_tag() {
-    assert_eq!(unwrap_math("a <math x"), "a <math x");
+fn protect_math_ignores_tags_that_only_start_with_math() {
+    assert_eq!(protect_math("<mathematics>"), "<mathematics>");
 }
 
 #[test]
-fn unwrap_math_removes_a_stray_closing_tag() {
-    assert_eq!(unwrap_math("a</math>b"), "ab");
+fn protect_math_keeps_an_unterminated_open_tag() {
+    assert_eq!(protect_math("a <math x"), "a <math x");
 }
 
 #[test]
-fn unwrap_math_leaves_text_without_math_alone() {
-    assert_eq!(unwrap_math("1 < 2 and 3 > 2"), "1 < 2 and 3 > 2");
+fn protect_math_strips_an_open_tag_that_is_never_closed() {
+    assert_eq!(protect_math("a <math>b"), "a b");
 }
 
 #[test]
-fn unwrap_math_handles_empty_text() {
-    assert_eq!(unwrap_math(""), "");
+fn protect_math_removes_a_stray_closing_tag() {
+    assert_eq!(protect_math("a</math>b"), "ab");
 }
 
 #[test]
-fn unwrap_math_preserves_non_ascii_text() {
-    assert_eq!(unwrap_math("π <math>∑x</math> ≈ ∞"), "π ∑x ≈ ∞");
+fn protect_math_strips_a_nested_open_tag_inside_a_formula() {
+    assert_eq!(protect_math("<math>a<math>b</math>"), "<nowiki>ab</nowiki>");
+}
+
+#[test]
+fn protect_math_leaves_text_without_math_alone() {
+    assert_eq!(protect_math("1 < 2 and 3 > 2"), "1 < 2 and 3 > 2");
+}
+
+#[test]
+fn protect_math_handles_empty_text() {
+    assert_eq!(protect_math(""), "");
+}
+
+#[test]
+fn protect_math_preserves_non_ascii_text() {
+    assert_eq!(
+        protect_math("π <math>∑x</math> ≈ ∞"),
+        "π <nowiki>∑x</nowiki> ≈ ∞"
+    );
+}
+
+#[test]
+fn has_closing_math_finds_a_later_closing_tag() {
+    let text: Vec<char> = "a<math>b</math>".chars().collect();
+
+    assert!(has_closing_math(&text, 7));
+    assert!(!has_closing_math(&text, 12));
 }
 
 #[test]
@@ -784,6 +828,33 @@ async fn render_report_accepts_string_values_for_integer_fields() {
 }
 
 #[tokio::test]
+async fn render_report_reads_the_luasandbox_memory_item_when_there_is_no_virtual_size() {
+    let harness = harness(page_with_report(
+        "<p>x</p>",
+        json!([{"name": "scribunto-limitreport-memusage", "0": 7849362, "1": 524288000}]),
+    ));
+    let report = harness.renderer.render_report("word", "text").await.ok();
+
+    assert_eq!(report.as_ref().map(|r| r.lua_memory_bytes), Some(7849362));
+    assert_eq!(report.map(|r| r.lua_memory_limit_bytes), Some(524288000));
+}
+
+#[tokio::test]
+async fn render_report_prefers_the_virtual_size_item_when_both_are_present() {
+    let harness = harness(page_with_report(
+        "<p>x</p>",
+        json!([
+            {"name": "scribunto-limitreport-memusage", "0": 1, "1": 2},
+            {"name": "scribunto-limitreport-virtmemusage", "0": 3, "1": 4}
+        ]),
+    ));
+    let report = harness.renderer.render_report("word", "text").await.ok();
+
+    assert_eq!(report.as_ref().map(|r| r.lua_memory_bytes), Some(3));
+    assert_eq!(report.map(|r| r.lua_memory_limit_bytes), Some(4));
+}
+
+#[tokio::test]
 async fn render_report_skips_unparseable_timing_lines() {
     let harness = harness(page_with_report(
         "<p>x</p>",
@@ -839,7 +910,11 @@ async fn render_report_keeps_template_names_with_spaces() {
     let report = harness.renderer.render_report("word", "text").await.ok();
 
     assert_eq!(
-        report.map(|r| r.templates.iter().map(|t| t.name.clone()).collect::<Vec<_>>()),
+        report.map(|r| r
+            .templates
+            .iter()
+            .map(|t| t.name.clone())
+            .collect::<Vec<_>>()),
         Some(vec!["Template:two words".to_string()])
     );
 }
@@ -901,4 +976,462 @@ fn parse_timing_line_rejects_the_total_line() {
 #[test]
 fn parse_timing_line_rejects_an_empty_line() {
     assert_eq!(parse_timing_line(""), None);
+}
+
+#[test]
+fn remove_score_removes_the_tag_and_its_content() {
+    assert_eq!(remove_score("a <score>c d e</score> b"), "a  b");
+}
+
+#[test]
+fn remove_score_removes_a_tag_with_attributes() {
+    assert_eq!(
+        remove_score(r#"x <score sound="1" raw>{\clef bass}</score> y"#),
+        "x  y"
+    );
+}
+
+#[test]
+fn remove_score_removes_a_self_closing_tag() {
+    assert_eq!(remove_score("x <score a=\"b\"/> y"), "x  y");
+}
+
+#[test]
+fn remove_score_removes_several_tags() {
+    assert_eq!(remove_score("<score>a</score>m<score>b</score>"), "m");
+}
+
+#[test]
+fn remove_score_keeps_text_without_a_score_tag() {
+    assert_eq!(
+        remove_score("plain {{ux|en|x}} text"),
+        "plain {{ux|en|x}} text"
+    );
+}
+
+#[test]
+fn remove_score_ignores_tags_that_only_start_with_score() {
+    assert_eq!(remove_score("<scores>a</scores>"), "<scores>a</scores>");
+}
+
+#[test]
+fn remove_score_keeps_a_tag_that_is_never_closed() {
+    assert_eq!(remove_score("a <score>b"), "a <score>b");
+}
+
+#[test]
+fn remove_score_handles_empty_text() {
+    assert_eq!(remove_score(""), "");
+}
+
+#[test]
+fn remove_score_preserves_non_ascii_text() {
+    assert_eq!(remove_score("π <score>∑</score> ≈ ∞"), "π  ≈ ∞");
+}
+
+#[test]
+fn has_unterminated_template_is_false_for_balanced_templates() {
+    assert!(!has_unterminated_template(
+        "{{lb|en|x}} text {{plural of|en|y}}"
+    ));
+}
+
+#[test]
+fn has_unterminated_template_is_true_for_an_open_template() {
+    assert!(has_unterminated_template("{{quote-text|en|year=1819|"));
+}
+
+#[test]
+fn has_unterminated_template_is_true_when_a_nested_template_is_left_open() {
+    assert!(has_unterminated_template("{{a|{{b|c}}"));
+}
+
+#[test]
+fn has_unterminated_template_ignores_a_stray_closing_pair() {
+    assert!(!has_unterminated_template("text }} more {{a}}"));
+}
+
+#[test]
+fn has_unterminated_template_is_false_for_plain_text() {
+    assert!(!has_unterminated_template("a { b } c"));
+}
+
+#[test]
+fn has_unterminated_template_is_false_for_empty_text() {
+    assert!(!has_unterminated_template(""));
+}
+
+#[test]
+fn has_unterminated_template_ignores_braces_inside_nowiki() {
+    assert!(!has_unterminated_template(
+        "{{ux|en|<nowiki>x_{i_{j}} {{</nowiki>}}"
+    ));
+}
+
+#[test]
+fn has_unterminated_template_ignores_an_unclosed_nowiki_remainder() {
+    assert!(!has_unterminated_template("a <nowiki>{{b"));
+}
+
+#[test]
+fn prepare_markup_strips_refs_removes_scores_and_protects_math() {
+    assert_eq!(
+        prepare_markup("a<ref>c</ref> <score>s</score><math>x=1</math>"),
+        "a <nowiki>x=1</nowiki>"
+    );
+}
+
+#[test]
+fn prepare_markup_leaves_clean_markup_unchanged() {
+    assert_eq!(prepare_markup("{{lb|en|x}} text"), "{{lb|en|x}} text");
+}
+
+#[test]
+fn has_error_class_matches_the_exact_token() {
+    assert!(has_error_class(r#"<strong class="error""#));
+    assert!(has_error_class(r#"<span class="mw-x error mw-ext""#));
+}
+
+#[test]
+fn has_error_class_ignores_similar_class_names() {
+    assert!(!has_error_class(r#"<span class="scribunto-error""#));
+    assert!(!has_error_class(r#"<span class="errors""#));
+    assert!(!has_error_class("<span>"));
+}
+
+#[test]
+fn error_starts_lists_the_start_of_each_error_element() {
+    let html = r#"<p>a</p><strong class="error">x</strong><p><span class="error">y</span></p>"#;
+
+    assert_eq!(error_starts(html), vec![8, 43]);
+}
+
+#[test]
+fn error_starts_is_empty_without_errors() {
+    assert!(error_starts("<p>ok</p><span class=\"x\">y</span>").is_empty());
+}
+
+#[test]
+fn error_message_reads_the_text_inside_the_element() {
+    let html = r#"<p>a</p><strong class="error">Lua error in Module:x: bad</strong>"#;
+
+    assert_eq!(error_message(html, 8), "Lua error in Module:x: bad");
+}
+
+#[test]
+fn error_message_reads_through_a_nested_element() {
+    let html = r#"<strong class="error"><span class="scribunto-error" id="e">Lua error: nested</span></strong>"#;
+
+    assert_eq!(error_message(html, 0), "Lua error: nested");
+}
+
+#[test]
+fn error_message_collapses_whitespace() {
+    let html = "<span class=\"error\">a\n   b</span>";
+
+    assert_eq!(error_message(html, 0), "a b");
+}
+
+#[test]
+fn error_message_is_limited_to_four_hundred_characters() {
+    let html = format!("<span class=\"error\">{}</span>", "x".repeat(900));
+
+    assert_eq!(error_message(&html, 0).chars().count(), 400);
+}
+
+const SEP: &str = "wm.\u{241f}";
+
+fn definitions_html(parts: &[&str]) -> String {
+    parts
+        .iter()
+        .map(|part| format!("<p>{part}</p>"))
+        .collect::<Vec<_>>()
+        .join(&format!("\n<p>{SEP}</p>\n"))
+}
+
+#[test]
+fn split_response_returns_each_definition_rendered() {
+    let harness = harness(page("<p>x</p>"));
+    let html = definitions_html(&["one", "two", "three"]);
+
+    assert_eq!(
+        harness.renderer.split_response(&html, 3).ok(),
+        Some(vec![
+            DefinitionOutcome::Rendered("mock:one".to_string()),
+            DefinitionOutcome::Rendered("mock:two".to_string()),
+            DefinitionOutcome::Rendered("mock:three".to_string()),
+        ])
+    );
+}
+
+#[test]
+fn split_response_marks_only_the_definition_containing_an_error() {
+    let harness = harness(page("<p>x</p>"));
+    let html = definitions_html(&[
+        "one",
+        r#"<strong class="error">Lua error: bad</strong>"#,
+        "three",
+    ]);
+
+    assert_eq!(
+        harness.renderer.split_response(&html, 3).ok(),
+        Some(vec![
+            DefinitionOutcome::Rendered("mock:one".to_string()),
+            DefinitionOutcome::Failed("mock:Lua error: bad".to_string()),
+            DefinitionOutcome::Rendered("mock:three".to_string()),
+        ])
+    );
+}
+
+#[test]
+fn split_response_marks_the_first_and_last_definitions() {
+    let harness = harness(page("<p>x</p>"));
+    let html = definitions_html(&[
+        r#"<span class="error">first</span>"#,
+        "middle",
+        r#"<span class="error">last</span>"#,
+    ]);
+
+    assert_eq!(
+        harness.renderer.split_response(&html, 3).ok(),
+        Some(vec![
+            DefinitionOutcome::Failed("mock:first".to_string()),
+            DefinitionOutcome::Rendered("mock:middle".to_string()),
+            DefinitionOutcome::Failed("mock:last".to_string()),
+        ])
+    );
+}
+
+#[test]
+fn split_response_keeps_the_first_error_of_a_definition() {
+    let harness = harness(page("<p>x</p>"));
+    let html =
+        definitions_html(&[r#"<span class="error">one</span> <span class="error">two</span>"#]);
+
+    assert_eq!(
+        harness.renderer.split_response(&html, 1).ok(),
+        Some(vec![DefinitionOutcome::Failed("mock:one".to_string())])
+    );
+}
+
+#[test]
+fn split_response_fails_when_the_definition_count_is_wrong() {
+    let harness = harness(page("<p>x</p>"));
+    let html = definitions_html(&["one", "two"]);
+
+    assert!(harness.renderer.split_response(&html, 3).is_err());
+}
+
+#[test]
+fn split_response_of_one_definition_needs_no_separator() {
+    let harness = harness(page("<p>x</p>"));
+
+    assert_eq!(
+        harness.renderer.split_response("<p>only</p>", 1).ok(),
+        Some(vec![DefinitionOutcome::Rendered("mock:only".to_string())])
+    );
+}
+
+#[tokio::test]
+async fn render_definitions_sends_prepared_definitions_joined_by_the_definition_separator() {
+    let harness = harness(page(&definitions_html(&["a", "b"])));
+    let definitions = vec!["a<ref>r</ref>".to_string(), "<math>x=1</math>".to_string()];
+    let _ = harness
+        .renderer
+        .render_definitions("wm.batch", &definitions)
+        .await;
+
+    assert_eq!(
+        recorded(&harness.requests),
+        vec![(
+            "wm.batch".to_string(),
+            format!("a\n\n{SEP}\n\n<nowiki>x=1</nowiki>")
+        )]
+    );
+}
+
+#[tokio::test]
+async fn render_definitions_returns_the_outcome_of_every_definition() {
+    let harness = harness(page(&definitions_html(&[
+        "a",
+        r#"<span class="error">bad</span>"#,
+    ])));
+    let definitions = vec!["one".to_string(), "two".to_string()];
+
+    assert_eq!(
+        harness
+            .renderer
+            .render_definitions("wm.batch", &definitions)
+            .await
+            .ok(),
+        Some(vec![
+            DefinitionOutcome::Rendered("mock:a".to_string()),
+            DefinitionOutcome::Failed("mock:bad".to_string()),
+        ])
+    );
+}
+
+#[tokio::test]
+async fn render_definitions_of_no_definitions_makes_no_request() {
+    let harness = harness(page("<p>x</p>"));
+
+    assert_eq!(
+        harness
+            .renderer
+            .render_definitions("wm.batch", &[])
+            .await
+            .ok(),
+        Some(Vec::new())
+    );
+    assert!(recorded(&harness.requests).is_empty());
+}
+
+#[tokio::test]
+async fn render_definitions_fails_when_the_count_does_not_match() {
+    let harness = harness(page("<p>only one</p>"));
+    let definitions = vec!["a".to_string(), "b".to_string()];
+
+    assert!(
+        harness
+            .renderer
+            .render_definitions("wm.batch", &definitions)
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn render_definitions_passes_a_client_failure_through() {
+    let harness = harness(Reply::Failure("down".to_string()));
+    let definitions = vec!["a".to_string()];
+
+    assert!(
+        harness
+            .renderer
+            .render_definitions("wm.batch", &definitions)
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn render_definitions_fails_when_the_response_has_no_parse_object() {
+    let harness = harness(Reply::Json(json!({"error": "bad"})));
+    let definitions = vec!["a".to_string()];
+
+    assert!(
+        harness
+            .renderer
+            .render_definitions("wm.batch", &definitions)
+            .await
+            .is_err()
+    );
+}
+
+#[test]
+fn strip_style_elements_removes_the_element_and_its_css() {
+    assert_eq!(
+        strip_style_elements("<p>a</p><style>.x{color:red}</style><p>b</p>"),
+        "<p>a</p><p>b</p>"
+    );
+}
+
+#[test]
+fn strip_style_elements_removes_an_element_with_attributes() {
+    assert_eq!(
+        strip_style_elements(r#"a<style data-mw-deduplicate="TemplateStyles:r1">.x{}</style>b"#),
+        "ab"
+    );
+}
+
+#[test]
+fn strip_style_elements_removes_several_elements() {
+    assert_eq!(
+        strip_style_elements("<style>a</style>m<style>b</style>"),
+        "m"
+    );
+}
+
+#[test]
+fn strip_style_elements_keeps_html_without_style() {
+    assert_eq!(strip_style_elements("<p>plain</p>"), "<p>plain</p>");
+}
+
+#[test]
+fn strip_style_elements_ignores_tags_that_only_start_with_style() {
+    assert_eq!(
+        strip_style_elements("<styles>a</styles>"),
+        "<styles>a</styles>"
+    );
+}
+
+#[test]
+fn strip_style_elements_keeps_an_element_that_is_never_closed() {
+    assert_eq!(strip_style_elements("a<style>b"), "a<style>b");
+}
+
+#[test]
+fn strip_style_elements_handles_empty_html() {
+    assert_eq!(strip_style_elements(""), "");
+}
+
+#[test]
+fn split_response_leaves_style_css_out_of_the_text() {
+    let harness = harness(page("<p>x</p>"));
+    let html = format!(
+        "<style>.mw-parser-output .defdate{{font-size:smaller}}</style>{}",
+        definitions_html(&["one", "two"])
+    );
+
+    assert_eq!(
+        harness.renderer.split_response(&html, 2).ok(),
+        Some(vec![
+            DefinitionOutcome::Rendered("mock:one".to_string()),
+            DefinitionOutcome::Rendered("mock:two".to_string()),
+        ])
+    );
+}
+
+#[tokio::test]
+async fn render_leaves_style_css_out_of_the_text() {
+    let harness = harness(page("<style>.x{color:red}</style><p>visible</p>"));
+
+    assert_eq!(
+        harness.renderer.render("word", "text").await.ok(),
+        Some("mock:visible".to_string())
+    );
+}
+
+#[test]
+fn error_message_reads_through_links_inside_the_element() {
+    let html = r#"<strong class="error">Lua error in <a href="/x">Module:y</a> at <a href="/z">line 247</a>: bad value</strong> after"#;
+
+    assert_eq!(
+        error_message(html, 0),
+        "Lua error in Module:y at line 247: bad value"
+    );
+}
+
+#[test]
+fn error_message_reads_through_nested_elements_of_the_same_name() {
+    let html = r#"<span class="error">a <span>b</span> c</span> tail"#;
+
+    assert_eq!(error_message(html, 0), "a b c");
+}
+
+#[test]
+fn error_message_stops_at_the_end_of_the_error_element() {
+    let html = r#"<p><span class="error">bad</span> and more text</p>"#;
+
+    assert_eq!(error_message(html, 3), "bad");
+}
+
+#[test]
+fn error_message_of_an_element_that_is_never_closed_reads_to_the_end() {
+    assert_eq!(error_message(r#"<span class="error">open"#, 0), "open");
+}
+
+#[test]
+fn error_message_of_a_truncated_start_tag_is_empty() {
+    assert_eq!(error_message(r#"<span class="error""#, 0), "");
 }
