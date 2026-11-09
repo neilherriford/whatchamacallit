@@ -7,6 +7,7 @@ mod markup_parser;
 mod markup_renderer;
 mod model;
 mod stats;
+mod title_dependency;
 mod utils;
 
 use crate::{
