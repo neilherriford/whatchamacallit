@@ -39,3 +39,5 @@ mediawiki/config
 .zed/debug.json
 # don't version stat runs
 stat-runs/*
+
+mediawiki/title-dependent.txt

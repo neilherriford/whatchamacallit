@@ -193,6 +193,36 @@ fn retry_rejects_a_second_positional_argument() {
 }
 
 #[test]
+fn generate_title_dependency_defaults_the_output_path() {
+    assert_eq!(
+        parse(&["generate-title-dependency"]),
+        Some(Command::GenerateTitleDependency(GenerateArgs {
+            out: DEFAULT_TITLE_DEPENDENCY_FILE.to_string(),
+        }))
+    );
+}
+
+#[test]
+fn generate_title_dependency_takes_an_output_path() {
+    assert_eq!(
+        parse(&["generate-title-dependency", "--out", "list.txt"]),
+        Some(Command::GenerateTitleDependency(GenerateArgs {
+            out: "list.txt".to_string(),
+        }))
+    );
+}
+
+#[test]
+fn generate_title_dependency_rejects_a_positional_argument() {
+    assert_eq!(parse(&["generate-title-dependency", "list.txt"]), None);
+}
+
+#[test]
+fn the_default_title_dependency_file_is_in_the_mediawiki_folder() {
+    assert!(DEFAULT_TITLE_DEPENDENCY_FILE.ends_with("/mediawiki/title-dependent.txt"));
+}
+
+#[test]
 fn stats_defaults_the_prefix() {
     assert_eq!(
         parse(&["stats"]),

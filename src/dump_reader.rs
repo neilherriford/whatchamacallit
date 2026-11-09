@@ -55,6 +55,7 @@ pub struct DumpReader {
     buf: Vec<u8>,
     state: State,
     ns: Option<i32>,
+    namespaces: Vec<i32>,
     title: Option<String>,
     text_buffer: String,
     finished: bool,
@@ -62,11 +63,19 @@ pub struct DumpReader {
 
 impl DumpReader {
     pub fn new(dump_file: Box<dyn DumpFile>) -> Result<Self, Error> {
+        Self::with_namespaces(dump_file, &[0])
+    }
+
+    pub fn with_namespaces(
+        dump_file: Box<dyn DumpFile>,
+        namespaces: &[i32],
+    ) -> Result<Self, Error> {
         Ok(Self {
             dump_file,
             buf: Vec::new(),
             state: State::Init,
             ns: None,
+            namespaces: namespaces.to_vec(),
             title: None,
             text_buffer: String::new(),
             finished: false,
@@ -92,12 +101,12 @@ impl DumpReader {
                     };
                 }
                 Event::Text(t) => {
-                    if should_capture_text(self.state, self.ns) {
+                    if should_capture_text(self.state, self.ns, &self.namespaces) {
                         append_to_buffer(&mut self.text_buffer, &t);
                     }
                 }
                 Event::GeneralRef(r) => {
-                    if should_capture_text(self.state, self.ns) {
+                    if should_capture_text(self.state, self.ns, &self.namespaces) {
                         let decoded: String = match r.resolve_char_ref()? {
                             Some(c) => c.to_string(),
                             None => match &*r {
@@ -120,7 +129,7 @@ impl DumpReader {
 
                     match (element_name, self.state) {
                         ("page", State::Page) => {
-                            let is_entry = is_primary_namespace(self.ns);
+                            let is_entry = is_wanted_namespace(self.ns, &self.namespaces);
                             let word = self.title.take();
                             let markup = std::mem::take(&mut self.text_buffer);
 
@@ -193,10 +202,10 @@ enum State {
     Body,
 }
 
-fn should_capture_text(current_state: State, current_ns: Option<i32>) -> bool {
+fn should_capture_text(current_state: State, current_ns: Option<i32>, namespaces: &[i32]) -> bool {
     match current_state {
         State::Title | State::Ns => true,
-        State::Body => is_primary_namespace(current_ns),
+        State::Body => is_wanted_namespace(current_ns, namespaces),
         _ => false,
     }
 }
@@ -205,8 +214,8 @@ fn append_to_buffer(buffer: &mut String, byte_text: &quick_xml::events::BytesTex
     buffer.push_str(&String::from_utf8_lossy(byte_text.as_bytes()))
 }
 
-fn is_primary_namespace(ns: Option<i32>) -> bool {
-    matches!(ns, Some(0))
+fn is_wanted_namespace(ns: Option<i32>, namespaces: &[i32]) -> bool {
+    ns.is_some_and(|ns| namespaces.contains(&ns))
 }
 
 #[cfg(test)]

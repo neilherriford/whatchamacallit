@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-const MAGIC_WORDS: [&str; 26] = [
+pub(crate) const MAGIC_WORDS: [&str; 26] = [
     "PAGENAME",
     "PAGENAMEE",
     "FULLPAGENAME",
@@ -56,7 +56,7 @@ fn template_head(rest: &str) -> Option<Head<'_>> {
     })
 }
 
-fn balanced_end(markup: &str, start: usize) -> Option<usize> {
+pub(crate) fn balanced_end(markup: &str, start: usize) -> Option<usize> {
     let bytes = markup.as_bytes();
     let mut depth = 0usize;
     let mut index = start;
@@ -175,13 +175,13 @@ impl TitleDependency for SimpleTitleDependency {
     }
 }
 
-fn normalize(name: &str) -> String {
+pub(crate) fn normalize(name: &str) -> String {
     let name = name.replace('_', " ");
     let name = name.trim();
     name.strip_prefix(':').unwrap_or(name).trim().to_string()
 }
 
-fn strip_prefix_ignore_case<'a>(text: &'a str, prefix: &str) -> Option<&'a str> {
+pub(crate) fn strip_prefix_ignore_case<'a>(text: &'a str, prefix: &str) -> Option<&'a str> {
     let head = text.get(..prefix.len())?;
     head.eq_ignore_ascii_case(prefix)
         .then(|| &text[prefix.len()..])

@@ -8,6 +8,9 @@ use crate::{
 use clap::{Args, Parser, Subcommand};
 use std::collections::BTreeMap;
 
+pub const DEFAULT_TITLE_DEPENDENCY_FILE: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/mediawiki/title-dependent.txt");
+
 #[derive(Debug, Parser)]
 #[command(name = "whatchamacallit", version, about)]
 pub struct Cli {
@@ -19,6 +22,7 @@ pub struct Cli {
 pub enum Command {
     Render(RenderArgs),
     Retry(RetryArgs),
+    GenerateTitleDependency(GenerateArgs),
     Stats(StatsArgs),
 }
 
@@ -42,6 +46,12 @@ pub struct RetryArgs {
     pub out: String,
     #[arg(long, default_value = "default")]
     pub setup_tag: String,
+}
+
+#[derive(Debug, PartialEq, Eq, Args)]
+pub struct GenerateArgs {
+    #[arg(long, default_value = DEFAULT_TITLE_DEPENDENCY_FILE)]
+    pub out: String,
 }
 
 #[derive(Debug, PartialEq, Eq, Args)]

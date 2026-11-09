@@ -7,34 +7,42 @@ use std::{
 
 #[test]
 fn title_and_ns_text_is_always_captured() {
-    assert!(should_capture_text(State::Title, None));
-    assert!(should_capture_text(State::Title, Some(10)));
-    assert!(should_capture_text(State::Ns, None));
-    assert!(should_capture_text(State::Ns, Some(0)));
+    assert!(should_capture_text(State::Title, None, &[0]));
+    assert!(should_capture_text(State::Title, Some(10), &[0]));
+    assert!(should_capture_text(State::Ns, None, &[0]));
+    assert!(should_capture_text(State::Ns, Some(0), &[0]));
 }
 
 #[test]
 fn body_text_is_captured_only_in_the_main_namespace() {
-    assert!(should_capture_text(State::Body, Some(0)));
-    assert!(!should_capture_text(State::Body, Some(10)));
-    assert!(!should_capture_text(State::Body, Some(14)));
-    assert!(!should_capture_text(State::Body, None));
+    assert!(should_capture_text(State::Body, Some(0), &[0]));
+    assert!(!should_capture_text(State::Body, Some(10), &[0]));
+    assert!(!should_capture_text(State::Body, Some(14), &[0]));
+    assert!(!should_capture_text(State::Body, None, &[0]));
 }
 
 #[test]
 fn text_in_other_states_is_not_captured() {
-    assert!(!should_capture_text(State::Init, Some(0)));
-    assert!(!should_capture_text(State::Page, Some(0)));
-    assert!(!should_capture_text(State::Revision, Some(0)));
+    assert!(!should_capture_text(State::Init, Some(0), &[0]));
+    assert!(!should_capture_text(State::Page, Some(0), &[0]));
+    assert!(!should_capture_text(State::Revision, Some(0), &[0]));
 }
 
 #[test]
-fn only_namespace_zero_is_primary() {
-    assert!(is_primary_namespace(Some(0)));
-    assert!(!is_primary_namespace(Some(1)));
-    assert!(!is_primary_namespace(Some(10)));
-    assert!(!is_primary_namespace(Some(-1)));
-    assert!(!is_primary_namespace(None));
+fn body_text_is_captured_in_every_wanted_namespace() {
+    assert!(should_capture_text(State::Body, Some(10), &[10, 828]));
+    assert!(should_capture_text(State::Body, Some(828), &[10, 828]));
+    assert!(!should_capture_text(State::Body, Some(0), &[10, 828]));
+}
+
+#[test]
+fn a_namespace_is_wanted_only_when_listed() {
+    assert!(is_wanted_namespace(Some(0), &[0]));
+    assert!(is_wanted_namespace(Some(10), &[10, 828]));
+    assert!(!is_wanted_namespace(Some(1), &[0]));
+    assert!(!is_wanted_namespace(Some(-1), &[0]));
+    assert!(!is_wanted_namespace(None, &[0]));
+    assert!(!is_wanted_namespace(Some(0), &[]));
 }
 
 #[test]
@@ -132,6 +140,21 @@ fn reader_over(steps: Vec<Step>) -> (DumpReader, Arc<Mutex<Vec<usize>>>) {
 
     match DumpReader::new(Box::new(dump_file)) {
         Ok(reader) => (reader, buffer_lengths_seen),
+        Err(err) => panic!("unexpected error: {err}"),
+    }
+}
+
+fn pages_in(steps: Vec<Step>, namespaces: &[i32]) -> Vec<(String, String)> {
+    let dump_file = MockDumpFile {
+        steps: steps.into(),
+        buffer_lengths_seen: Arc::new(Mutex::new(Vec::new())),
+    };
+
+    match DumpReader::with_namespaces(Box::new(dump_file), namespaces) {
+        Ok(reader) => reader
+            .filter_map(Result::ok)
+            .map(|page| (page.word, page.markup))
+            .collect(),
         Err(err) => panic!("unexpected error: {err}"),
     }
 }
@@ -570,4 +593,25 @@ fn mock_dump_file_is_usable_as_a_trait_object() {
         dump_file.read_event_into(&mut buf),
         Ok(Event::Eof)
     ));
+}
+
+#[test]
+fn a_reader_over_several_namespaces_yields_only_those_pages() {
+    let mut steps = page("Template:lb", "10", "template body");
+    steps.extend(page("Module:links", "828", "module body"));
+    steps.extend(page("Category:English", "14", "category body"));
+    steps.extend(page("word", "0", "entry body"));
+
+    assert_eq!(
+        pages_in(steps, &[10, 828]),
+        vec![
+            entry("Template:lb", "template body"),
+            entry("Module:links", "module body")
+        ]
+    );
+}
+
+#[test]
+fn a_reader_over_no_namespaces_yields_nothing() {
+    assert!(pages_in(page("word", "0", "entry body"), &[]).is_empty());
 }

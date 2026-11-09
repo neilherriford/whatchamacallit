@@ -9,11 +9,14 @@ mod markup_renderer;
 mod model;
 mod pipeline;
 mod stats;
+mod template_examples;
+mod title_analysis;
 mod title_dependency;
+mod title_differential;
 mod utils;
 
 use crate::{
-    commands::{Cli, Command, RenderArgs, RetryArgs},
+    commands::{Cli, Command, GenerateArgs, RenderArgs, RetryArgs},
     dump_reader::{DumpReader, LocalDumpFile},
     entry_parser::{EntryParser, SimpleEntryParser},
     failure_log::{FailureLog, known_failures, read_tsv, split_for_retry},
@@ -23,6 +26,8 @@ use crate::{
         DefinitionRenderer, LocalMediaWikiClient, MarkupRenderer, SimpleMarkupRenderer,
     },
     pipeline::{JsonlSink, PipelineConfig, PipelineSummary, WordEntry},
+    template_examples::TemplateExamples,
+    title_analysis::TitleAnalysis,
     title_dependency::SimpleTitleDependency,
 };
 use clap::Parser;
@@ -41,14 +46,21 @@ async fn main() -> ExitCode {
     match Cli::parse().command {
         Command::Render(args) => render_command(args).await,
         Command::Retry(args) => retry_command(args).await,
+        Command::GenerateTitleDependency(args) => generate_title_dependency(args).await,
         Command::Stats(args) => generate_samples(args.prefix).await,
     }
 }
 
+const TITLE_COMPARISON_CONCURRENCY: usize = 10;
+
 fn open_pages() -> Result<DumpReader, String> {
+    open_pages_in(&[0])
+}
+
+fn open_pages_in(namespaces: &[i32]) -> Result<DumpReader, String> {
     let dump_file = LocalDumpFile::create_with_default_path().map_err(|err| err.to_string())?;
 
-    DumpReader::new(Box::new(dump_file)).map_err(|err| err.to_string())
+    DumpReader::with_namespaces(Box::new(dump_file), namespaces).map_err(|err| err.to_string())
 }
 
 fn load_title_dependency() -> Result<SimpleTitleDependency, String> {
@@ -62,7 +74,12 @@ fn load_title_dependency() -> Result<SimpleTitleDependency, String> {
 
     std::fs::read_to_string(&path)
         .map(|text| SimpleTitleDependency::from_lines(&text))
-        .map_err(|err| format!("{}: {err}", path.display()))
+        .map_err(|err| {
+            format!(
+                "{}: {err} (run `whatchamacallit generate-title-dependency` to create it)",
+                path.display()
+            )
+        })
 }
 
 fn write_failure_files(log: &FailureLog, out_dir: &Path, setup_tag: &str) -> std::io::Result<()> {
@@ -219,6 +236,68 @@ async fn retry_command(args: RetryArgs) -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+async fn generate_title_dependency(args: GenerateArgs) -> ExitCode {
+    match build_title_dependency(&args.out).await {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(err) => {
+            println!("oops {err}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+async fn build_title_dependency(out: &str) -> Result<(), String> {
+    let analysis = TitleAnalysis::new().map_err(|err| err.to_string())?;
+
+    println!("reading templates and modules from the dump");
+    let static_dependents = analysis.static_dependents(open_pages_in(&[10, 828])?);
+    println!(
+        "templates analysed: {}\nmodules analysed: {}\nmodules reading the page title: {}\ntitle-dependent templates: {}",
+        static_dependents.templates_analysed,
+        static_dependents.modules_analysed,
+        static_dependents.modules.len(),
+        static_dependents.templates.len()
+    );
+
+    println!("collecting example definitions from the dump");
+    let dependency = SimpleTitleDependency::from_lines(&static_dependents.lines());
+    let mut examples = TemplateExamples::default();
+    template_examples::collect(
+        &mut open_pages()?,
+        &SimpleMarkupParser::default(),
+        &SimpleEntryParser::default(),
+        &dependency,
+        &mut examples,
+    );
+    println!("templates with examples: {}", examples.template_count());
+
+    println!("rendering each example under its own title and a shared title");
+    let renderer: Arc<dyn DefinitionRenderer> = Arc::new(SimpleMarkupRenderer::new(
+        Box::new(SimpleHtmlEntityRenderer::default()),
+        Box::new(LocalMediaWikiClient::default()),
+    ));
+    let verdicts =
+        title_differential::compare_titles(renderer, &examples, TITLE_COMPARISON_CONCURRENCY)
+            .await?;
+    println!(
+        "examples rendered: {}\ncleared (identical under both titles): {}\ntitle-dependent (an example differs): {}\nkept flagged (an example failed to render): {}\nkept flagged (no examples in the dump): {}",
+        verdicts.examples,
+        verdicts.cleared.len(),
+        verdicts.differs.len(),
+        verdicts.failed.len(),
+        static_dependents
+            .templates
+            .len()
+            .saturating_sub(examples.template_count())
+    );
+
+    std::fs::write(out, static_dependents.without_templates(&verdicts.cleared).lines())
+        .map_err(|err| format!("{out}: {err}"))?;
+    println!("written to {out}");
+
+    Ok(())
 }
 
 async fn generate_samples(prefix: String) -> ExitCode {
