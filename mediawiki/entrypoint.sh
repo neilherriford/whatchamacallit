@@ -44,14 +44,8 @@ until php -r 'exit(@mysqli_connect("db", "wiki", "wiki", "wiki") ? 0 : 1);'; do 
 #   829 Module talk    discussion pages attached to the modules
 #   100 Appendix       Wiktionary appendix pages; Module:Get IDs reads Appendix:Glossary while rendering labels
 # Namespace 101 (Appendix talk) is defined above but not imported.
-if [ ! -f /config/.imported ]; then
-  ( rm -f /config/.import-failed
-    if php maintenance/run.php importDump --no-updates --report=1000 --namespaces "0|8|10|828|829|100" \
-        /dump/enwiktionary-2026-10-01-p6p12232071.xml > /config/import.log 2>&1; then
-      touch /config/.imported
-    else
-      echo $? > /config/.import-failed
-    fi ) &
+if [ -z "$SKIP_IMPORT" ] && [ ! -f /config/.imported ]; then
+  DUMP_FILE=/dump/enwiktionary-2026-10-01-p6p12232071.xml sh /import.sh &
 fi
 
 exec apache2-foreground

@@ -23,5 +23,5 @@ RUN for e in LabeledSectionTransclusion CharInsert wikihiero; do \
       && rm -rf extensions/$e/.git; \
     done
 
-COPY entrypoint.sh /entrypoint.sh
+COPY entrypoint.sh import.sh import-part.sh /
 ENTRYPOINT ["sh", "/entrypoint.sh"]
