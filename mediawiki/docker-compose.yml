@@ -1,7 +1,12 @@
 services:
   db:
     image: mariadb:11
-    command: ["--innodb-buffer-pool-size=4G"]
+    command:
+      - --innodb-buffer-pool-size=4G
+      - --innodb-flush-log-at-trx-commit=2
+      - --innodb-doublewrite=0
+      - --innodb-log-file-size=2G
+      - --innodb-snapshot-isolation=0
     environment:
       MARIADB_DATABASE: wiki
       MARIADB_USER: wiki

@@ -1,9 +1,13 @@
-.PHONY: build run stop clean status reimport
+.PHONY: build plan run stop clean status reimport
 
 build:
 	docker compose build
 
-run:
+plan:
+	@mkdir -p config
+	@if [ -f config/.imported ]; then echo "import already complete"; else cargo run --release --quiet --manifest-path ../Cargo.toml -- split-dump --ranges-only --out config; fi
+
+run: plan
 	docker compose up -d
 
 stop:
@@ -20,8 +24,9 @@ reimport:
 
 status:
 	@if [ -f config/.imported ]; then echo "import complete"; \
-	elif [ -f config/.import-failed ]; then \
-	  echo "import FAILED (exit code $$(cat config/.import-failed)); last lines of config/import.log:"; tail -n 20 config/import.log; \
-	else \
-	  docker compose exec -T mediawiki sh -c 'p=$$(pgrep -f "[i]mportDump" | head -1); [ -n "$$p" ] || { echo "import not running"; exit 0; }; for f in /proc/$$p/fd/*; do case "$$(readlink $$f)" in *.xml) pos=$$(awk "/^pos:/{print \$$2}" /proc/$$p/fdinfo/$$(basename $$f)); size=$$(stat -L -c %s $$f); echo "import $$((pos * 100 / size))% ($$pos of $$size bytes read)";; esac; done'; \
-	fi
+	elif [ -f config/.import-failed ]; then echo "import FAILED:"; cat config/.import-failed; \
+	elif [ -f config/ranges.tsv ]; then \
+	  total=$$(( $$(wc -l < config/ranges.tsv) - 1 )); \
+	  done=$$(ls config/import-logs/*.done 2> /dev/null | wc -l | tr -d ' '); \
+	  echo "import $$done of $$total parts done"; \
+	else echo "import not started (run: make run)"; fi
