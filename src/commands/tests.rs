@@ -418,3 +418,58 @@ fn retry_entries_uses_an_unknown_part_of_speech() {
 fn retry_entries_of_nothing_is_empty() {
     assert!(retry_entries(Vec::new()).is_empty());
 }
+
+#[test]
+fn split_dump_uses_the_defaults() {
+    assert_eq!(
+        parse(&["split-dump"]),
+        Some(Command::SplitDump(SplitArgs {
+            input: None,
+            out: DEFAULT_SPLIT_DIR.to_string(),
+            parts: 120,
+            keep_every: 1,
+            ranges_only: false,
+        }))
+    );
+}
+
+#[test]
+fn split_dump_reads_every_option() {
+    assert_eq!(
+        parse(&[
+            "split-dump",
+            "--input",
+            "dump.xml",
+            "--out",
+            "here",
+            "--parts",
+            "8",
+            "--keep-every",
+            "4",
+            "--ranges-only",
+        ]),
+        Some(Command::SplitDump(SplitArgs {
+            input: Some("dump.xml".to_string()),
+            out: "here".to_string(),
+            parts: 8,
+            keep_every: 4,
+            ranges_only: true,
+        }))
+    );
+}
+
+#[test]
+fn split_dump_rejects_zero_parts_or_zero_keep_every() {
+    assert_eq!(parse(&["split-dump", "--parts", "0"]), None);
+    assert_eq!(parse(&["split-dump", "--keep-every", "0"]), None);
+}
+
+#[test]
+fn split_dump_rejects_a_positional_argument() {
+    assert_eq!(parse(&["split-dump", "dump.xml"]), None);
+}
+
+#[test]
+fn the_default_split_directory_is_in_the_loadtest_folder() {
+    assert!(DEFAULT_SPLIT_DIR.ends_with("/mediawiki/loadtest/parts"));
+}

@@ -26,16 +26,18 @@ impl LocalDumpFile {
         })
     }
 
+    pub fn default_path() -> PathBuf {
+        [
+            env!("CARGO_MANIFEST_DIR"),
+            "dictionary",
+            "enwiktionary-2026-10-01-p6p12232071.xml",
+        ]
+        .iter()
+        .collect()
+    }
+
     pub fn create_with_default_path() -> Result<Self, Error> {
-        Self::create(
-            [
-                env!("CARGO_MANIFEST_DIR"),
-                "dictionary",
-                "enwiktionary-2026-10-01-p6p12232071.xml",
-            ]
-            .iter()
-            .collect(),
-        )
+        Self::create(Self::default_path())
     }
 }
 

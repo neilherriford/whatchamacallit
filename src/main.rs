@@ -1,6 +1,7 @@
 mod commands;
 mod database;
 mod dump_reader;
+mod dump_splitter;
 mod entry_parser;
 mod failure_log;
 mod html_entity_renderer;
@@ -16,8 +17,9 @@ mod title_differential;
 mod utils;
 
 use crate::{
-    commands::{Cli, Command, GenerateArgs, RenderArgs, RetryArgs},
+    commands::{Cli, Command, GenerateArgs, RenderArgs, RetryArgs, SplitArgs},
     dump_reader::{DumpReader, LocalDumpFile},
+    dump_splitter::{split_dump, totals, write_manifest, write_ranges},
     entry_parser::{EntryParser, SimpleEntryParser},
     failure_log::{FailureLog, known_failures, read_tsv, split_for_retry},
     html_entity_renderer::SimpleHtmlEntityRenderer,
@@ -48,6 +50,7 @@ async fn main() -> ExitCode {
         Command::Retry(args) => retry_command(args).await,
         Command::GenerateTitleDependency(args) => generate_title_dependency(args).await,
         Command::Stats(args) => generate_samples(args.prefix).await,
+        Command::SplitDump(args) => split_dump_command(&args),
     }
 }
 
@@ -236,6 +239,77 @@ async fn retry_command(args: RetryArgs) -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+fn split_dump_command(args: &SplitArgs) -> ExitCode {
+    match run_split(args) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(err) => {
+            println!("oops {err}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn run_split(args: &SplitArgs) -> Result<(), String> {
+    let input_path = args
+        .input
+        .as_ref()
+        .map_or_else(LocalDumpFile::default_path, std::path::PathBuf::from);
+    let out_dir = Path::new(&args.out);
+    let file = File::open(&input_path).map_err(|err| format!("{}: {err}", input_path.display()))?;
+    let total_bytes = file
+        .metadata()
+        .map_err(|err| format!("{}: {err}", input_path.display()))?
+        .len();
+    std::fs::create_dir_all(out_dir).map_err(|err| format!("{}: {err}", out_dir.display()))?;
+
+    let started = std::time::Instant::now();
+    let ranges_only = args.ranges_only;
+    let mut open = |index: usize| -> std::io::Result<Box<dyn Write>> {
+        if ranges_only {
+            return Ok(Box::new(std::io::sink()));
+        }
+        let part = File::create(out_dir.join(format!("part-{index:04}.xml")))?;
+        Ok(Box::new(BufWriter::new(part)))
+    };
+    let stats = split_dump(
+        std::io::BufReader::with_capacity(1 << 20, file),
+        total_bytes,
+        args.parts,
+        args.keep_every,
+        &mut open,
+    )
+    .map_err(|err| err.to_string())?;
+
+    let manifest_path = out_dir.join("manifest.tsv");
+    let mut manifest = BufWriter::new(
+        File::create(&manifest_path).map_err(|err| format!("{}: {err}", manifest_path.display()))?,
+    );
+    write_manifest(&stats, &mut manifest)
+        .and_then(|()| manifest.flush())
+        .map_err(|err| format!("{}: {err}", manifest_path.display()))?;
+
+    let ranges_path = out_dir.join("ranges.tsv");
+    let mut ranges = BufWriter::new(
+        File::create(&ranges_path).map_err(|err| format!("{}: {err}", ranges_path.display()))?,
+    );
+    write_ranges(&stats, &mut ranges)
+        .and_then(|()| ranges.flush())
+        .map_err(|err| format!("{}: {err}", ranges_path.display()))?;
+
+    println!(
+        "parts: {}\nparts written: {}\nseconds: {:.1}",
+        stats.len(),
+        stats.iter().filter(|part| part.kept).count(),
+        started.elapsed().as_secs_f64()
+    );
+    for (namespace, (pages, text_bytes)) in totals(&stats) {
+        println!("namespace {namespace}: {pages} pages, {text_bytes} text bytes");
+    }
+    println!("manifest: {}\nranges: {}", manifest_path.display(), ranges_path.display());
+
+    Ok(())
 }
 
 async fn generate_title_dependency(args: GenerateArgs) -> ExitCode {

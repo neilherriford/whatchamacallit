@@ -11,6 +11,16 @@ use std::collections::BTreeMap;
 pub const DEFAULT_TITLE_DEPENDENCY_FILE: &str =
     concat!(env!("CARGO_MANIFEST_DIR"), "/mediawiki/title-dependent.txt");
 
+pub const DEFAULT_SPLIT_DIR: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/mediawiki/loadtest/parts");
+
+fn positive(text: &str) -> Result<usize, String> {
+    text.parse::<usize>()
+        .ok()
+        .filter(|value| *value > 0)
+        .ok_or_else(|| "must be a positive whole number".to_string())
+}
+
 #[derive(Debug, Parser)]
 #[command(name = "whatchamacallit", version, about)]
 pub struct Cli {
@@ -24,6 +34,7 @@ pub enum Command {
     Retry(RetryArgs),
     GenerateTitleDependency(GenerateArgs),
     Stats(StatsArgs),
+    SplitDump(SplitArgs),
 }
 
 #[derive(Debug, PartialEq, Eq, Args)]
@@ -52,6 +63,20 @@ pub struct RetryArgs {
 pub struct GenerateArgs {
     #[arg(long, default_value = DEFAULT_TITLE_DEPENDENCY_FILE)]
     pub out: String,
+}
+
+#[derive(Debug, PartialEq, Eq, Args)]
+pub struct SplitArgs {
+    #[arg(long)]
+    pub input: Option<String>,
+    #[arg(long, default_value = DEFAULT_SPLIT_DIR)]
+    pub out: String,
+    #[arg(long, default_value_t = 120, value_parser = positive)]
+    pub parts: usize,
+    #[arg(long, default_value_t = 1, value_parser = positive)]
+    pub keep_every: usize,
+    #[arg(long)]
+    pub ranges_only: bool,
 }
 
 #[derive(Debug, PartialEq, Eq, Args)]
