@@ -1,0 +1,32 @@
+name: wm-loadtest
+
+services:
+  db:
+    image: mariadb:11
+    environment:
+      MARIADB_DATABASE: wiki
+      MARIADB_USER: wiki
+      MARIADB_PASSWORD: wiki
+      MARIADB_ROOT_PASSWORD: root
+    volumes:
+      - dbdata:/var/lib/mysql
+      - ./db-profiles/${DB_PROFILE:-default}.cnf:/etc/mysql/conf.d/profile.cnf:ro
+
+  mediawiki:
+    build:
+      context: ..
+    depends_on:
+      - db
+    ports:
+      - "127.0.0.1:8081:80"
+    environment:
+      MW_CONFIG_FILE: /config/LocalSettings.php
+      SKIP_IMPORT: "${SKIP_IMPORT-1}"
+    volumes:
+      - ../../dictionary:/dump:ro
+      - ./config:/config
+      - ../php-tuning.ini:/usr/local/etc/php/conf.d/zz-tuning.ini:ro
+      - ${PARTS_DIR:-./parts}:/parts:ro
+
+volumes:
+  dbdata:

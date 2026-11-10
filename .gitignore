@@ -41,3 +41,11 @@ mediawiki/config
 stat-runs/*
 
 mediawiki/title-dependent.txt
+
+mediawiki/loadtest/config
+mediawiki/loadtest/parts
+mediawiki/loadtest/runs
+mediawiki/loadtest/results.csv
+mediawiki/loadtest/baseline.csv
+mediawiki/loadtest/smoke-parts
+mediawiki/loadtest/parts-half
