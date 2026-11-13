@@ -9,6 +9,7 @@ mod markup_parser;
 mod markup_renderer;
 mod model;
 mod pipeline;
+mod render_timing;
 mod stats;
 mod template_examples;
 mod title_analysis;
@@ -28,6 +29,7 @@ use crate::{
         DefinitionRenderer, LocalMediaWikiClient, MarkupRenderer, SimpleMarkupRenderer,
     },
     pipeline::{JsonlSink, PipelineConfig, PipelineSummary, WordEntry},
+    render_timing::{RequestTiming, RunFacts, TimedRenderer, write_meta, write_requests},
     template_examples::TemplateExamples,
     title_analysis::TitleAnalysis,
     title_dependency::SimpleTitleDependency,
@@ -121,6 +123,27 @@ fn print_summary(summary: &PipelineSummary, failures: &FailureLog, out_dir: &Pat
     }
 }
 
+fn write_run_stats(
+    out_dir: &Path,
+    rendered_name: &str,
+    facts: &RunFacts,
+    summary: &PipelineSummary,
+    timings: &[RequestTiming],
+) -> std::io::Result<()> {
+    let stem = Path::new(rendered_name)
+        .file_stem()
+        .and_then(|name| name.to_str())
+        .unwrap_or(rendered_name);
+
+    let mut meta = BufWriter::new(File::create(out_dir.join(format!("{stem}-meta.csv")))?);
+    write_meta(facts, summary, timings, &mut meta)?;
+    meta.flush()?;
+
+    let mut requests = BufWriter::new(File::create(out_dir.join(format!("{stem}-requests.csv")))?);
+    write_requests(timings, &mut requests)?;
+    requests.flush()
+}
+
 async fn run_pipeline(
     words: impl Iterator<Item = WordEntry>,
     known: &HashMap<String, String>,
@@ -128,6 +151,7 @@ async fn run_pipeline(
     rendered_name: &str,
     kept: Vec<failure_log::FailedDefinition>,
     setup_tag: &str,
+    stride: u64,
 ) -> Result<(), String> {
     let title_dependency = load_title_dependency()?;
     std::fs::create_dir_all(out_dir).map_err(|err| format!("{}: {err}", out_dir.display()))?;
@@ -140,24 +164,48 @@ async fn run_pipeline(
         failures.record(failure);
     }
 
-    let renderer: Arc<dyn DefinitionRenderer> = Arc::new(SimpleMarkupRenderer::new(
+    let timed = Arc::new(TimedRenderer::new(Arc::new(SimpleMarkupRenderer::new(
         Box::new(SimpleHtmlEntityRenderer::default()),
         Box::new(LocalMediaWikiClient::default()),
-    ));
+    ))));
+    let renderer: Arc<dyn DefinitionRenderer> = timed.clone();
+    let config = PipelineConfig::default();
+    let started_at_ms = stats::now_millis();
+    let started = std::time::Instant::now();
     let summary = pipeline::run(
         words,
         renderer,
         &title_dependency,
-        PipelineConfig::default(),
+        config,
         known,
         &mut sink,
         &mut failures,
     )
     .await
     .map_err(|err| err.to_string())?;
+    let elapsed_ms = started.elapsed().as_secs_f64() * 1000.0;
+    let finished_at_ms = stats::now_millis();
 
     sink.flush().map_err(|err| err.to_string())?;
     write_failure_files(&failures, out_dir, setup_tag).map_err(|err| err.to_string())?;
+    write_run_stats(
+        out_dir,
+        rendered_name,
+        &RunFacts {
+            started_at_ms,
+            finished_at_ms,
+            elapsed_ms,
+            concurrency: config.concurrency,
+            batch_size: config.batch_size,
+            batch_max_bytes: config.batch_max_bytes,
+            stride,
+            setup_tag,
+            git_commit: &stats::git_commit(),
+        },
+        &summary,
+        &timed.timings(),
+    )
+    .map_err(|err| err.to_string())?;
     print_summary(&summary, &failures, out_dir);
 
     Ok(())
@@ -193,6 +241,7 @@ async fn render_command(args: RenderArgs) -> ExitCode {
         "rendered.jsonl",
         Vec::new(),
         &args.setup_tag,
+        args.stride,
     )
     .await
     {
@@ -230,6 +279,7 @@ async fn retry_command(args: RetryArgs) -> ExitCode {
         "retried.jsonl",
         kept,
         &args.setup_tag,
+        1,
     )
     .await
     {

@@ -53,14 +53,14 @@ impl Stopwatch {
     }
 }
 
-fn now_millis() -> u128 {
+pub(crate) fn now_millis() -> u128 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|elapsed| elapsed.as_millis())
         .unwrap_or_default()
 }
 
-fn git_commit() -> String {
+pub(crate) fn git_commit() -> String {
     Command::new("git")
         .args(["rev-parse", "HEAD"])
         .output()
@@ -70,7 +70,7 @@ fn git_commit() -> String {
         .unwrap_or_else(|| "unknown".to_string())
 }
 
-fn csv_field(value: &str) -> String {
+pub(crate) fn csv_field(value: &str) -> String {
     format!("\"{}\"", value.replace('"', "\"\""))
 }
 
