@@ -68,7 +68,7 @@ impl Model for SimpleModel {
             .commit_from_file(self.model_file("model.onnx"))?;
 
         let tokenizer = Tokenizer::from_file(self.model_file("tokenizer.json"))?;
-        let tokens = tokenizer.encode(prompt, false).unwrap();
+        let tokens = tokenizer.encode(prompt, false)?;
 
         let ids = to_i64s(&tokens.get_ids());
         let attention_mask = to_i64s(&tokens.get_attention_mask());

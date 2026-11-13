@@ -1435,3 +1435,134 @@ fn error_message_of_an_element_that_is_never_closed_reads_to_the_end() {
 fn error_message_of_a_truncated_start_tag_is_empty() {
     assert_eq!(error_message(r#"<span class="error""#, 0), "");
 }
+
+fn missing_link(name: &str) -> String {
+    format!(
+        r#"<a href="/index.php?title=Template:x&amp;action=edit&amp;redlink=1" class="new" title="Template:{name} (page does not exist)">Template:{name}</a>"#
+    )
+}
+
+#[test]
+fn missing_templates_names_a_template_page_that_does_not_exist() {
+    assert_eq!(
+        missing_templates(&missing_link("no such template")),
+        vec![(0, "no such template".to_string())]
+    );
+}
+
+#[test]
+fn missing_templates_ignores_a_template_page_that_exists() {
+    let html = r#"<a href="/index.php/Template:lb" title="Template:lb">lb</a>"#;
+
+    assert!(missing_templates(html).is_empty());
+}
+
+#[test]
+fn missing_templates_ignores_a_missing_page_outside_the_template_namespace() {
+    let html = r#"<a class="new" title="w:Edward Lear (page does not exist)">Edward Lear</a>"#;
+
+    assert!(missing_templates(html).is_empty());
+}
+
+#[test]
+fn missing_templates_reports_the_definition_each_one_is_in() {
+    let html = definitions_html(&[&missing_link("one"), &missing_link("two")]);
+
+    assert_eq!(
+        missing_templates(&html),
+        vec![(0, "one".to_string()), (1, "two".to_string())]
+    );
+}
+
+#[test]
+fn missing_templates_of_text_without_links_is_empty() {
+    assert!(missing_templates("<p>plain</p>").is_empty());
+}
+
+#[test]
+fn calls_template_finds_a_call_by_name() {
+    assert!(calls_template("a {{quote song|en|x=1}} b", "quote song"));
+}
+
+#[test]
+fn calls_template_allows_spaces_after_the_braces() {
+    assert!(calls_template("{{ quote song }}", "quote song"));
+}
+
+#[test]
+fn calls_template_reads_underscores_as_spaces() {
+    assert!(calls_template("{{quote_song|en}}", "quote song"));
+}
+
+#[test]
+fn calls_template_ignores_plain_text() {
+    assert!(!calls_template(
+        "see Template:quote song here",
+        "quote song"
+    ));
+}
+
+#[test]
+fn calls_template_ignores_a_link_to_the_page() {
+    assert!(!calls_template("[[Template:quote song]]", "quote song"));
+}
+
+#[tokio::test]
+async fn render_definitions_fails_only_the_definition_that_calls_a_missing_template() {
+    let harness = harness(page(&definitions_html(&["fine", &missing_link("gone")])));
+    let definitions = vec!["a".to_string(), "{{gone|x}}".to_string()];
+
+    let found = harness
+        .renderer
+        .render_definitions("wm.batch", &definitions)
+        .await;
+
+    assert_eq!(
+        found.ok(),
+        Some(vec![
+            DefinitionOutcome::Rendered("mock:fine".to_string()),
+            DefinitionOutcome::Failed("Missing template: gone".to_string()),
+        ])
+    );
+}
+
+#[tokio::test]
+async fn render_definitions_keeps_a_definition_that_only_links_to_a_missing_template_page() {
+    let harness = harness(page(&definitions_html(&["a", &missing_link("gone")])));
+    let definitions = vec!["a".to_string(), "see [[Template:gone]]".to_string()];
+
+    let found = harness
+        .renderer
+        .render_definitions("wm.batch", &definitions)
+        .await;
+
+    assert!(matches!(
+        found.ok().as_deref(),
+        Some([
+            DefinitionOutcome::Rendered(_),
+            DefinitionOutcome::Rendered(_)
+        ])
+    ));
+}
+
+#[tokio::test]
+async fn render_definitions_accepts_a_link_to_a_missing_page_outside_the_template_namespace() {
+    let harness = harness(page(&definitions_html(&[
+        r#"<a class="new" title="w:Edward Lear (page does not exist)">Edward Lear</a>"#,
+        "b",
+    ])));
+    let definitions = vec!["{{w|Edward Lear}}".to_string(), "b".to_string()];
+
+    let found = harness
+        .renderer
+        .render_definitions("wm.batch", &definitions)
+        .await;
+
+    assert!(matches!(
+        found.ok().as_deref(),
+        Some([
+            DefinitionOutcome::Rendered(_),
+            DefinitionOutcome::Rendered(_)
+        ])
+    ));
+}

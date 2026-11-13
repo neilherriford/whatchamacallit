@@ -1,6 +1,5 @@
-use regex::Regex;
 use rusqlite::Connection;
-use std::{path::PathBuf, sync::LazyLock};
+use std::path::PathBuf;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -182,13 +181,8 @@ impl Database for SqliteDatabase {
     }
 }
 
-fn control_characters_pattern() -> &'static Regex {
-    static PATTERN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\p{Cc}").unwrap());
-    &PATTERN
-}
-
 fn escape_for_sqlite(text: &str) -> String {
-    let result = control_characters_pattern().replace_all(text, "");
+    let result: String = text.chars().filter(|c| !c.is_control()).collect();
     let result = result.replace("'", "''");
     result.trim().to_string()
 }

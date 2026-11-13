@@ -5,7 +5,7 @@ cd /var/www/html
 dump="${DUMP_FILE:?DUMP_FILE is not set}"
 ranges=/config/ranges.tsv
 logs=/config/import-logs
-namespaces="0|8|10|828|829|100"
+namespaces="0|8|10|828|100"
 workers="${IMPORT_WORKERS:-$(nproc)}"
 if [ "$workers" -gt 12 ]; then
   workers=12

@@ -220,7 +220,19 @@ impl DefinitionRenderer for SimpleMarkupRenderer {
         let parsed = fetch_object_by_key(&json, "parse")?;
         let html = fetch_string_by_key(parsed, "text")?;
 
-        self.split_response(&html, definitions.len())
+        let mut outcomes = self.split_response(&html, definitions.len())?;
+
+        for (position, name) in missing_templates(&html) {
+            if let (Some(markup), Some(outcome)) =
+                (definitions.get(position), outcomes.get_mut(position))
+                && calls_template(markup, &name)
+                && matches!(outcome, DefinitionOutcome::Rendered(_))
+            {
+                *outcome = DefinitionOutcome::Failed(format!("Missing template: {name}"));
+            }
+        }
+
+        Ok(outcomes)
     }
 }
 
@@ -510,6 +522,36 @@ pub(crate) fn has_unterminated_template(markup: &str) -> bool {
     }
 
     depth > 0
+}
+
+fn missing_templates(html: &str) -> Vec<(usize, String)> {
+    const TEMPLATE_TITLE: &str = "title=\"Template:";
+    const NOT_FOUND: &str = " (page does not exist)";
+    let mut found = Vec::new();
+    let mut offset = 0;
+
+    while let Some(start) = html[offset..].find(TEMPLATE_TITLE) {
+        let begin = offset + start;
+        let after = &html[begin + TEMPLATE_TITLE.len()..];
+        let end = after.find('"').unwrap_or(after.len());
+
+        if let Some(name) = after[..end].strip_suffix(NOT_FOUND) {
+            let position = html[..begin].matches(DEFINITION_SEPARATOR).count();
+            found.push((position, name.to_string()));
+        }
+
+        offset = begin + TEMPLATE_TITLE.len() + end;
+    }
+
+    found
+}
+
+fn calls_template(markup: &str, name: &str) -> bool {
+    let markup = markup.replace('_', " ");
+
+    markup
+        .match_indices(name)
+        .any(|(index, _)| markup[..index].trim_end().ends_with("{{"))
 }
 
 fn has_error_class(tag: &str) -> bool {

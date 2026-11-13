@@ -3,7 +3,7 @@ set -e
 name="${1:?usage: acceptance.sh NAME [split-dump options]}"
 shift
 
-namespaces="0|8|10|828|829|100"
+namespaces="0|8|10|828|100"
 folded_into_main="90 91 92 93 106 107 109 110 111 114 115 116 118 119"
 wiki="http://localhost:8081/api.php?action=query&meta=siteinfo&format=json"
 

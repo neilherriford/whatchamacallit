@@ -38,10 +38,9 @@ until php -r 'exit(@mysqli_connect("db", "wiki", "wiki", "wiki") ? 0 : 1);'; do 
 
 # Namespaces imported from the dump:
 #   0   (Main)         dictionary entries; Module:Transclude reads entries from here, e.g. {{tcl|en|@ellip of:Surigao City}}
-#   8   MediaWiki      interface and system message pages, e.g. MediaWiki:Scribunto-common-error-category
-#   10  Template       template pages, e.g. Template:label, which {{lb}} and {{lbl}} redirect to
+#   8   MediaWiki      interface and system message pages, e.g. MediaWiki:Cite references link one, which sets the reference back-link symbol
+#   10  Template      template pages, e.g. Template:label, which {{lb}} and {{lbl}} redirect to
 #   828 Module         Lua modules that templates run through {{#invoke:...}} (Scribunto)
-#   829 Module talk    discussion pages attached to the modules
 #   100 Appendix       Wiktionary appendix pages; Module:Get IDs reads Appendix:Glossary while rendering labels
 # Namespace 101 (Appendix talk) is defined above but not imported.
 if [ -z "$SKIP_IMPORT" ] && [ ! -f /config/.imported ]; then
